@@ -1,7 +1,7 @@
 // hover-footer.tsx — adapted for Vite/React (no Next.js, framer-motion instead of motion/react)
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Github, X, Mail } from "lucide-react";
+import { Code2, X, Mail } from "lucide-react";
 
 /* ─── Text Hover Effect ─────────────────────────────────────── */
 interface TextHoverEffectProps {
@@ -254,27 +254,22 @@ export function CapitalScopeFooter() {
     <footer
       style={{
         position: "relative",
-        margin: "48px 32px 32px",
-        borderRadius: 24,
+        margin: "40px 32px 32px",
+        borderRadius: 22,
         overflow: "hidden",
-        border: "1px solid rgba(255,255,255,0.06)",
-        background: "rgba(0,0,0,0.38)",
-        backdropFilter: "blur(16px)",
+        border: "1px solid rgba(255,255,255,0.055)",
+        background: "rgba(255,255,255,0.018)",
       }}
     >
-      <FooterBackgroundGradient />
-
-      {/* Main content grid */}
       <div
         style={{
           position: "relative",
           zIndex: 1,
           maxWidth: 1136,
           margin: "0 auto",
-          padding: "56px 40px 40px",
+          padding: "44px 40px 28px",
         }}
       >
-        {/* Top row */}
         <div
           style={{
             display: "grid",
@@ -283,7 +278,6 @@ export function CapitalScopeFooter() {
           }}
           className="footer-grid"
         >
-          {/* Brand column */}
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
               <div
@@ -325,10 +319,9 @@ export function CapitalScopeFooter() {
               Professional-grade investment research tools for the self-directed investor.
             </p>
 
-            {/* Social icons */}
             <div style={{ display: "flex", gap: 12 }}>
               {[
-                { icon: Github, href: "https://github.com/kidoexpress/CapitalScope-Terminal" },
+                { icon: Code2, href: "https://github.com/kidoexpress/CapitalScope-Terminal" },
                 { icon: X, href: "https://x.com" },
                 { icon: Mail, href: "mailto:contact@capitalscope.io" },
               ].map(({ icon: Icon, href }) => (
@@ -341,7 +334,7 @@ export function CapitalScopeFooter() {
                     width: 32,
                     height: 32,
                     borderRadius: 8,
-                    border: "1px solid rgba(255,255,255,0.08)",
+                    border: "1px solid rgba(255,255,255,0.07)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -368,7 +361,6 @@ export function CapitalScopeFooter() {
             </div>
           </div>
 
-          {/* Core Tools */}
           <div>
             <p
               style={{
@@ -387,7 +379,6 @@ export function CapitalScopeFooter() {
             ))}
           </div>
 
-          {/* AI Agents */}
           <div>
             <p
               style={{
@@ -406,7 +397,6 @@ export function CapitalScopeFooter() {
             ))}
           </div>
 
-          {/* Resources */}
           <div>
             <p
               style={{
@@ -426,7 +416,6 @@ export function CapitalScopeFooter() {
           </div>
         </div>
 
-        {/* Divider */}
         <div
           style={{
             height: 1,
@@ -435,7 +424,6 @@ export function CapitalScopeFooter() {
           }}
         />
 
-        {/* Bottom bar */}
         <div
           style={{
             display: "flex",
@@ -449,22 +437,9 @@ export function CapitalScopeFooter() {
             © {new Date().getFullYear()} CapitalScope. For educational purposes only. Not financial advice.
           </p>
           <p style={{ fontSize: 11, color: "rgba(255,255,255,0.1)" }}>
-            Built with React + Vite
+            Local research platform
           </p>
         </div>
-      </div>
-
-      {/* SVG Text Hover Effect — big "CapitalScope" at the bottom */}
-      <div
-        style={{
-          position: "relative",
-          height: 120,
-          overflow: "hidden",
-          marginTop: -24,
-          opacity: 0.85,
-        }}
-      >
-        <TextHoverEffect text="CapitalScope" />
       </div>
     </footer>
   );

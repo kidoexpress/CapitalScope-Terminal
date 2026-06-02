@@ -5,25 +5,20 @@ import MarketTicker from './MarketTicker';
 
 export default function Layout() {
   return (
-    <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--bg-base)' }}>
-      {/* Market ticker strip */}
+    <div className="flex flex-col h-screen overflow-hidden app-shell">
       <MarketTicker />
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
         <Sidebar />
 
-        {/* Main area */}
-        <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="flex flex-col flex-1 overflow-hidden min-w-0">
           <TopBar />
           <main
-            className="flex-1 overflow-auto"
-            style={{
-              background: 'var(--bg-base)',
-              padding: '32px 36px',
-            }}
+            className="flex-1 overflow-auto app-main"
           >
-            <Outlet />
+            <div className="app-content">
+              <Outlet />
+            </div>
           </main>
         </div>
       </div>

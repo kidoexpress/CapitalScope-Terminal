@@ -169,7 +169,7 @@ export default function StockAnalyzer() {
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-5 animate-pulse max-w-6xl mx-auto">
+      <div className="flex flex-col gap-6 animate-pulse">
         <div className="shimmer rounded-2xl" style={{ height: 140 }} />
         <div className="shimmer rounded-2xl" style={{ height: 400 }} />
         <div className="grid grid-cols-4 gap-4">
@@ -188,7 +188,7 @@ export default function StockAnalyzer() {
   const dayRangePct = ((quote.price - quote.dayLow) / ((quote.dayHigh - quote.dayLow) || 1)) * 100;
 
   return (
-    <div className="flex flex-col gap-5 max-w-6xl mx-auto animate-fade-in-up">
+    <div className="flex flex-col gap-6 animate-fade-in-up">
 
       {/* ── SECTION 1: HERO ─────────────────────────────────── */}
       <div
@@ -216,7 +216,7 @@ export default function StockAnalyzer() {
               <div className="flex items-center gap-3">
                 <span
                   className="font-bold tracking-tight"
-                  style={{ fontSize: 40, color: 'var(--text-hi)', letterSpacing: '-0.03em', lineHeight: 1 }}
+                  style={{ fontSize: 48, color: 'var(--text-hi)', letterSpacing: '-0.04em', lineHeight: 1 }}
                 >
                   {quote.symbol}
                 </span>
@@ -268,7 +268,7 @@ export default function StockAnalyzer() {
             <div className="flex flex-col items-end gap-2 shrink-0">
               <div
                 className="font-mono font-bold"
-                style={{ fontSize: 44, color: 'var(--text-hi)', letterSpacing: '-0.03em', lineHeight: 1 }}
+                style={{ fontSize: 48, color: 'var(--text-hi)', letterSpacing: '-0.04em', lineHeight: 1 }}
               >
                 {formatCurrency(quote.price)}
               </div>
@@ -339,12 +339,12 @@ export default function StockAnalyzer() {
           symbol={quote.symbol}
           currentPrice={quote.price}
           compareSymbol={compareMode ? 'SPY' : undefined}
-          height={360}
+          height={460}
         />
       </div>
 
       {/* ── SECTION 3: PRIMARY METRICS ───────────────────────── */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <MetricTile
           label="Market Cap"
           value={formatMarketCap(quote.marketCap)}
@@ -370,10 +370,10 @@ export default function StockAnalyzer() {
 
       {/* ── SECTION 4: PERFORMANCE + AI ──────────────────────── */}
       {metrics && (
-        <div className="grid grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
           {/* Performance metrics — 3 cols */}
           <div
-            className="col-span-3 rounded-2xl"
+            className="xl:col-span-3 rounded-2xl"
             style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-sub)', padding: '24px' }}
           >
             <div className="label-upper mb-5">Performance Metrics (1Y)</div>
@@ -446,7 +446,7 @@ export default function StockAnalyzer() {
 
           {/* AI Insights — 2 cols */}
           <div
-            className="col-span-2 rounded-2xl flex flex-col"
+            className="xl:col-span-2 rounded-2xl flex flex-col"
             style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-sub)', padding: '24px' }}
           >
             <div className="flex items-center justify-between mb-4">

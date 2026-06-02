@@ -1,42 +1,14 @@
-import { useState, useEffect } from 'react';
-import { Plus, Trash2, RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
-import { usePortfolioStore, getTotalValue, getTotalGainLoss } from '../store/portfolioStore';
+import { useEffect, useMemo, useState } from 'react';
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Edit3, Plus, RefreshCw, Trash2, TrendingDown, TrendingUp, X } from 'lucide-react';
+import { usePortfolioStore, getTotalGainLoss, getTotalValue } from '../store/portfolioStore';
 import { getStockQuote } from '../utils/api';
-import { formatCurrency, formatPercent, calcDiversificationScore } from '../utils/finance';
+import { calcDiversificationScore, formatCurrency, formatPercent } from '../utils/finance';
 import AllocationChart from '../components/charts/AllocationChart';
-import RiskReturnScatter from '../components/charts/RiskReturnScatter';
-import { AIInsightPanel } from '../components/ui/AIInsightCard';
-import type { AIInsight, PortfolioHolding } from '../types';
 import Disclaimer from '../components/ui/Disclaimer';
 import StockSearch from '../components/ui/StockSearch';
-import { STOCK_DATABASE, SECTOR_COLORS } from '../data/mockStocks';
-
-function generatePortfolioInsights(holdings: PortfolioHolding[], diversScore: number): AIInsight[] {
-  const insights: AIInsight[] = [];
-
-  const techWeight = holdings.filter(h => h.sector === 'Technology').reduce((s, h) => s + h.weight, 0);
-  if (techWeight > 0.5) {
-    insights.push({ type: 'warning', title: 'Technology Overexposure', body: `${(techWeight * 100).toFixed(0)}% of your portfolio is in Technology. This creates concentration risk — a tech sector correction could significantly impact your returns.` });
-  }
-
-  if (diversScore < 40) {
-    insights.push({ type: 'risk', title: 'Low Diversification', body: `Your diversification score of ${diversScore}/100 suggests concentrated risk. Consider spreading across more sectors or reducing position sizes in top holdings.`, metric: `${diversScore}/100`, metricLabel: 'Diversification' });
-  } else if (diversScore > 75) {
-    insights.push({ type: 'opportunity', title: 'Well Diversified Portfolio', body: `Excellent diversification score of ${diversScore}/100. Your portfolio spreads risk across sectors and position sizes, which tends to reduce volatility over time.`, metric: `${diversScore}/100`, metricLabel: 'Diversification' });
-  }
-
-  const topHolder = holdings.reduce((max, h) => h.weight > max.weight ? h : max, holdings[0]);
-  if (topHolder && topHolder.weight > 0.35) {
-    insights.push({ type: 'warning', title: `Single-Stock Concentration Risk`, body: `${topHolder.symbol} represents ${(topHolder.weight * 100).toFixed(0)}% of your portfolio. A 20% decline in this stock alone would reduce your portfolio by ${(topHolder.weight * 20).toFixed(1)}%. Consider trimming.` });
-  }
-
-  const sectors = new Set(holdings.map(h => h.sector));
-  if (sectors.size <= 2) {
-    insights.push({ type: 'info', title: 'Sector Concentration', body: `Your portfolio spans only ${sectors.size} sector(s). Adding exposure to defensive sectors like Healthcare, Consumer Staples, or Utilities could reduce portfolio beta.` });
-  }
-
-  return insights;
-}
+import { SECTOR_COLORS, STOCK_DATABASE } from '../data/mockStocks';
+import type { PortfolioHolding } from '../types';
 
 interface AddHoldingForm {
   symbol: string;
@@ -45,27 +17,107 @@ interface AddHoldingForm {
   weight: number;
 }
 
+function buildPerformanceData(holdings: PortfolioHolding[]) {
+  const totalReturn = holdings.reduce((sum, holding) => sum + holding.weight * holding.gainLossPercent, 0);
+  const volatility = Math.max(0.8, holdings.reduce((sum, holding) => sum + holding.weight * (STOCK_DATABASE[holding.symbol]?.beta ?? 1), 0));
+  const labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  return labels.map((month, index) => {
+    const progress = index / (labels.length - 1);
+    const curve = Math.sin(progress * Math.PI * 2) * volatility * 0.9;
+    const portfolio = 100000 * (1 + ((totalReturn * progress + curve) / 100));
+    const sp500 = 100000 * (1 + ((8.4 * progress + Math.sin(progress * Math.PI * 1.7) * 1.2) / 100));
+    return {
+      month,
+      portfolio: Math.round(portfolio),
+      benchmark: Math.round(sp500),
+    };
+  });
+}
+
+function buildRiskContribution(holdings: PortfolioHolding[]) {
+  const raw = holdings.map(holding => {
+    const beta = STOCK_DATABASE[holding.symbol]?.beta ?? 1;
+    return {
+      symbol: holding.symbol,
+      contribution: holding.weight * beta,
+    };
+  });
+  const total = raw.reduce((sum, item) => sum + item.contribution, 0) || 1;
+  return raw.map(item => ({
+    ...item,
+    contribution: Number((item.contribution / total * 100).toFixed(1)),
+  }));
+}
+
+function PortfolioReviewCard({ holdings, diversScore }: { holdings: PortfolioHolding[]; diversScore: number }) {
+  const topHolding = holdings.reduce((max, holding) => holding.weight > max.weight ? holding : max, holdings[0]);
+  const strongest = holdings.reduce((best, holding) => holding.gainLossPercent > best.gainLossPercent ? holding : best, holdings[0]);
+  const weakest = holdings.reduce((worst, holding) => holding.gainLossPercent < worst.gainLossPercent ? holding : worst, holdings[0]);
+  const techWeight = holdings.filter(h => h.sector === 'Technology').reduce((sum, h) => sum + h.weight, 0);
+  const tone = diversScore >= 70 ? 'Balanced' : diversScore >= 45 ? 'Selective concentration' : 'Concentrated';
+
+  return (
+    <section className="workflow-card portfolio-review-card">
+      <div className="workflow-card-header">
+        <div>
+          <span className="label-upper">AI Portfolio Review</span>
+          <h2>{tone}</h2>
+        </div>
+      </div>
+      <div className="portfolio-review-grid">
+        <div>
+          <span>Key concentration risk</span>
+          <strong>{topHolding?.symbol ?? 'N/A'} at {((topHolding?.weight ?? 0) * 100).toFixed(0)}%</strong>
+          <p>{techWeight > 0.5 ? `Technology represents ${(techWeight * 100).toFixed(0)}% of the portfolio.` : 'Sector exposure appears more balanced than a single-sector portfolio.'}</p>
+        </div>
+        <div>
+          <span>Strongest holding</span>
+          <strong>{strongest?.symbol ?? 'N/A'}</strong>
+          <p>{formatPercent(strongest?.gainLossPercent ?? 0)} unrealized performance.</p>
+        </div>
+        <div>
+          <span>Weakest holding</span>
+          <strong>{weakest?.symbol ?? 'N/A'}</strong>
+          <p>{formatPercent(weakest?.gainLossPercent ?? 0)} unrealized performance.</p>
+        </div>
+      </div>
+      <div className="watch-items">
+        <span className="label-upper">Suggested Watch Items</span>
+        <ul>
+          <li>Single-name weights above 30% and their earnings dates.</li>
+          <li>Sector drawdown sensitivity versus the S&P 500.</li>
+          <li>Whether gains are driven by one position or broad contribution.</li>
+        </ul>
+      </div>
+      <p className="workflow-footnote">Educational analysis only. Not financial advice. Verify all data independently before making investment decisions.</p>
+    </section>
+  );
+}
+
 export default function PortfolioBuilder() {
   const { holdings, addHolding, removeHolding, updateWeight, normalizeWeights } = usePortfolioStore();
-  const [adding, setAdding] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [form, setForm] = useState<AddHoldingForm>({ symbol: '', shares: 10, avgCost: 100, weight: 0.1 });
   const [addLoading, setAddLoading] = useState(false);
-  const [insights, setInsights] = useState<AIInsight[]>([]);
   const [viewMode, setViewMode] = useState<'stock' | 'sector'>('stock');
 
   const totalValue = getTotalValue(holdings);
   const { amount: totalGL, percent: totalGLPct } = getTotalGainLoss(holdings);
-
-  // Diversification score
   const diversScore = calcDiversificationScore(
     holdings.map(h => h.weight),
-    holdings.map(() => holdings.map(() => 0.5)), // simplified
+    holdings.map(() => holdings.map(() => 0.5)),
     holdings.map(h => h.sector)
   );
 
+  const performanceData = useMemo(() => buildPerformanceData(holdings), [holdings]);
+  const riskContribution = useMemo(() => buildRiskContribution(holdings), [holdings]);
+
   useEffect(() => {
-    setInsights(generatePortfolioInsights(holdings, diversScore));
-  }, [holdings.length, diversScore]);
+    if (!drawerOpen) return;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, [drawerOpen]);
 
   const handleAdd = async () => {
     if (!form.symbol) return;
@@ -82,242 +134,227 @@ export default function PortfolioBuilder() {
       sector: quote?.sector || STOCK_DATABASE[form.symbol]?.sector || 'Technology',
     });
     setForm({ symbol: '', shares: 10, avgCost: 100, weight: 0.1 });
-    setAdding(false);
     setAddLoading(false);
   };
 
-  const scatterData = holdings.map(h => {
-    const stock = STOCK_DATABASE[h.symbol];
-    return {
-      symbol: h.symbol,
-      risk: 15 + (stock?.beta || 1) * 8,
-      return: h.gainLossPercent,
-      weight: h.weight,
-      sector: h.sector,
-    };
-  });
-
-  const bestPerformer = holdings.length > 0 ? holdings.reduce((best, h) => h.gainLossPercent > best.gainLossPercent ? h : best, holdings[0]) : null;
-  const worstPerformer = holdings.length > 0 ? holdings.reduce((worst, h) => h.gainLossPercent < worst.gainLossPercent ? h : worst, holdings[0]) : null;
-
   return (
-    <div className="flex flex-col gap-4 animate-fade-in-up">
-      {/* Portfolio summary */}
-      <div className="grid grid-cols-4 gap-3">
-        <div className="glass-panel p-4 rounded-xl col-span-2">
-          <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#475569' }}>TOTAL PORTFOLIO VALUE</div>
-          <div className="text-3xl font-mono font-bold mb-1" style={{ color: '#e2e8f0' }}>{formatCurrency(totalValue)}</div>
-          <div className="flex items-center gap-1.5 text-sm font-mono">
-            {totalGL >= 0 ? <TrendingUp size={13} style={{ color: '#10b981' }} /> : <TrendingDown size={13} style={{ color: '#ef4444' }} />}
-            <span style={{ color: totalGL >= 0 ? '#10b981' : '#ef4444' }}>
-              {formatCurrency(totalGL)} ({formatPercent(totalGLPct)})
-            </span>
-          </div>
+    <div className="workflow-page portfolio-page animate-fade-in-up">
+      <div className="product-page-heading">
+        <div>
+          <p>Portfolio</p>
+          <h1>Portfolio Intelligence</h1>
         </div>
-        <div className="glass-panel p-4 rounded-xl">
-          <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#475569' }}>DIVERSIFICATION</div>
-          <div className="text-2xl font-mono font-bold mb-1" style={{ color: diversScore > 60 ? '#10b981' : diversScore > 40 ? '#f59e0b' : '#ef4444' }}>{diversScore}<span className="text-base font-normal" style={{ color: '#334155' }}>/100</span></div>
-          <div className="h-1.5 rounded-full mt-1" style={{ background: 'rgba(99,102,241,0.1)' }}>
-            <div className="h-full rounded-full transition-all" style={{ width: `${diversScore}%`, background: diversScore > 60 ? '#10b981' : diversScore > 40 ? '#f59e0b' : '#ef4444' }} />
-          </div>
-        </div>
-        <div className="glass-panel p-4 rounded-xl">
-          <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#475569' }}>HOLDINGS</div>
-          <div className="text-2xl font-mono font-bold" style={{ color: '#e2e8f0' }}>{holdings.length}</div>
-          <div className="text-xs mt-1" style={{ color: '#475569' }}>
-            {new Set(holdings.map(h => h.sector)).size} sectors
-          </div>
-        </div>
+        <span>A cleaner operating view for allocation, performance, concentration, and risk contribution.</span>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        {/* Holdings table */}
-        <div className="col-span-2 flex flex-col gap-3">
-          <div className="glass-panel rounded-xl overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid rgba(99,102,241,0.08)' }}>
-              <h3 className="text-xs font-semibold" style={{ color: '#94a3b8' }}>HOLDINGS</h3>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={normalizeWeights}
-                  className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] transition-all"
-                  style={{ background: 'rgba(99,102,241,0.06)', color: '#64748b', border: '1px solid rgba(99,102,241,0.1)' }}
-                  title="Normalize weights to sum to 100%"
-                >
-                  <RefreshCw size={10} />
-                  Normalize
-                </button>
-                <button
-                  onClick={() => setAdding(!adding)}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
-                  style={{ background: adding ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)', color: adding ? '#ef4444' : '#10b981', border: `1px solid ${adding ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'}` }}
-                >
-                  <Plus size={11} />
-                  {adding ? 'Cancel' : 'Add Stock'}
-                </button>
-              </div>
-            </div>
+      <section className="portfolio-kpi-grid">
+        <div className="portfolio-kpi primary">
+          <span>Total Portfolio Value</span>
+          <strong>{formatCurrency(totalValue)}</strong>
+          <em className={totalGL >= 0 ? 'positive' : 'negative'}>
+            {totalGL >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+            {formatCurrency(totalGL)} ({formatPercent(totalGLPct)})
+          </em>
+        </div>
+        <div className="portfolio-kpi">
+          <span>Total Gain/Loss</span>
+          <strong className={totalGL >= 0 ? 'positive' : 'negative'}>{formatPercent(totalGLPct)}</strong>
+          <em>{formatCurrency(totalGL)}</em>
+        </div>
+        <div className="portfolio-kpi">
+          <span>Diversification Score</span>
+          <strong>{diversScore}<small>/100</small></strong>
+          <div className="mini-score-bar"><i style={{ width: `${diversScore}%` }} /></div>
+        </div>
+        <div className="portfolio-kpi">
+          <span>Holdings</span>
+          <strong>{holdings.length}</strong>
+          <em>{new Set(holdings.map(h => h.sector)).size} sectors</em>
+        </div>
+      </section>
 
-            {/* Add form */}
-            {adding && (
-              <div className="px-4 py-3 flex items-center gap-3" style={{ background: 'rgba(16,185,129,0.04)', borderBottom: '1px solid rgba(99,102,241,0.08)' }}>
-                <StockSearch
-                  onSelect={sym => setForm(f => ({ ...f, symbol: sym, avgCost: STOCK_DATABASE[sym]?.price || 100 }))}
-                  placeholder="Ticker..."
-                  className="w-44"
-                />
-                <div className="flex items-center gap-1">
-                  <span className="text-[10px]" style={{ color: '#475569' }}>Shares</span>
-                  <input
-                    type="number"
-                    value={form.shares}
-                    onChange={e => setForm(f => ({ ...f, shares: +e.target.value }))}
-                    className="w-16 px-2 py-1 rounded-md text-xs font-mono"
-                    min={1}
-                  />
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-[10px]" style={{ color: '#475569' }}>Avg Cost</span>
-                  <input
-                    type="number"
-                    value={form.avgCost}
-                    onChange={e => setForm(f => ({ ...f, avgCost: +e.target.value }))}
-                    className="w-20 px-2 py-1 rounded-md text-xs font-mono"
-                    min={0.01} step={0.01}
-                  />
-                </div>
-                <button
-                  onClick={handleAdd}
-                  disabled={!form.symbol || addLoading}
-                  className="px-3 py-1 rounded-lg text-xs font-semibold transition-all"
-                  style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.2)', opacity: !form.symbol ? 0.5 : 1 }}
-                >
-                  {addLoading ? '...' : 'Add'}
-                </button>
-              </div>
-            )}
-
-            {/* Holdings list */}
-            <div className="overflow-auto">
-              <table className="w-full">
-                <thead>
-                  <tr style={{ borderBottom: '1px solid rgba(99,102,241,0.06)' }}>
-                    {['Symbol', 'Shares', 'Avg Cost', 'Current', 'Value', 'P&L', 'Weight', ''].map(h => (
-                      <th key={h} className="px-4 py-2 text-left text-[9px] font-semibold uppercase tracking-wider" style={{ color: '#334155' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {holdings.map(h => (
-                    <tr key={h.symbol} style={{ borderBottom: '1px solid rgba(99,102,241,0.04)' }}
-                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(99,102,241,0.03)'}
-                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-                    >
-                      <td className="px-4 py-2.5">
-                        <div className="flex items-center gap-2">
-                          <div className="w-1.5 h-4 rounded-sm" style={{ background: SECTOR_COLORS[h.sector] || '#6366f1' }} />
-                          <div>
-                            <div className="text-xs font-mono font-bold" style={{ color: '#e2e8f0' }}>{h.symbol}</div>
-                            <div className="text-[9px]" style={{ color: '#334155' }}>{h.sector}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-2.5 text-xs font-mono" style={{ color: '#94a3b8' }}>{h.shares}</td>
-                      <td className="px-4 py-2.5 text-xs font-mono" style={{ color: '#94a3b8' }}>{formatCurrency(h.avgCost)}</td>
-                      <td className="px-4 py-2.5 text-xs font-mono font-semibold" style={{ color: '#e2e8f0' }}>{formatCurrency(h.currentPrice)}</td>
-                      <td className="px-4 py-2.5 text-xs font-mono" style={{ color: '#94a3b8' }}>{formatCurrency(h.value)}</td>
-                      <td className="px-4 py-2.5">
-                        <div className="text-xs font-mono font-semibold" style={{ color: h.gainLoss >= 0 ? '#10b981' : '#ef4444' }}>
-                          {formatPercent(h.gainLossPercent)}
-                        </div>
-                        <div className="text-[9px] font-mono" style={{ color: h.gainLoss >= 0 ? '#065f46' : '#7f1d1d' }}>
-                          {h.gainLoss >= 0 ? '+' : ''}{formatCurrency(h.gainLoss)}
-                        </div>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <div className="flex items-center gap-2">
-                          <div className="h-1 w-16 rounded-full" style={{ background: 'rgba(99,102,241,0.1)' }}>
-                            <div className="h-full rounded-full" style={{ width: `${h.weight * 100}%`, background: '#6366f1' }} />
-                          </div>
-                          <input
-                            type="number"
-                            value={(h.weight * 100).toFixed(0)}
-                            onChange={e => updateWeight(h.symbol, +e.target.value / 100)}
-                            className="w-12 px-1 py-0.5 rounded text-[10px] font-mono text-center"
-                            min={0} max={100}
-                          />
-                          <span className="text-[9px]" style={{ color: '#334155' }}>%</span>
-                        </div>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <button onClick={() => removeHolding(h.symbol)} className="w-5 h-5 flex items-center justify-center rounded transition-all" style={{ color: '#334155' }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#ef4444'; (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.1)'; }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#334155'; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-                        >
-                          <Trash2 size={11} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {holdings.length === 0 && (
-                <div className="flex items-center justify-center py-12 text-xs" style={{ color: '#334155' }}>
-                  No holdings yet. Add stocks to build your portfolio.
-                </div>
-              )}
+      <section className="portfolio-main-grid">
+        <div className="workflow-card portfolio-performance-card">
+          <div className="workflow-card-header">
+            <div>
+              <span className="label-upper">Performance</span>
+              <h2>Portfolio vs S&P 500</h2>
             </div>
+            <button onClick={() => setDrawerOpen(true)} className="secondary-action"><Edit3 size={14} /> Edit Holdings</button>
           </div>
-
-          {/* Risk/Return scatter */}
-          {holdings.length >= 2 && (
-            <div className="glass-panel p-4 rounded-xl">
-              <h3 className="text-xs font-semibold mb-3" style={{ color: '#94a3b8' }}>RISK / RETURN PROFILE</h3>
-              <RiskReturnScatter data={scatterData} height={220} />
-              <p className="text-[9px] mt-1 text-center" style={{ color: '#334155' }}>Bubble size = portfolio weight</p>
-            </div>
-          )}
-
-          {/* Best / Worst performers */}
-          {holdings.length >= 2 && (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="glass-panel p-4 rounded-xl" style={{ borderColor: 'rgba(16,185,129,0.2)' }}>
-                <div className="text-[9px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#065f46' }}>BEST PERFORMER</div>
-                <div className="text-xl font-mono font-bold" style={{ color: '#10b981' }}>{bestPerformer?.symbol}</div>
-                <div className="text-xs font-mono" style={{ color: '#10b981' }}>{formatPercent(bestPerformer?.gainLossPercent ?? 0)}</div>
-              </div>
-              <div className="glass-panel p-4 rounded-xl" style={{ borderColor: 'rgba(239,68,68,0.2)' }}>
-                <div className="text-[9px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#7f1d1d' }}>WORST PERFORMER</div>
-                <div className="text-xl font-mono font-bold" style={{ color: '#ef4444' }}>{worstPerformer?.symbol}</div>
-                <div className="text-xs font-mono" style={{ color: '#ef4444' }}>{formatPercent(worstPerformer?.gainLossPercent ?? 0)}</div>
-              </div>
-            </div>
-          )}
+          <ResponsiveContainer width="100%" height={360}>
+            <AreaChart data={performanceData}>
+              <defs>
+                <linearGradient id="portfolioArea" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#55d99a" stopOpacity={0.24} />
+                  <stop offset="95%" stopColor="#55d99a" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid vertical={false} />
+              <XAxis dataKey="month" tickLine={false} axisLine={false} />
+              <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => `$${Math.round(Number(value) / 1000)}k`} />
+              <Tooltip
+                content={({ active, payload, label }) => active && payload?.length ? (
+                  <div className="cs-tooltip">
+                    <strong>{label}</strong>
+                    {payload.map(item => (
+                      <div key={item.dataKey as string}>{item.name}: {formatCurrency(Number(item.value))}</div>
+                    ))}
+                  </div>
+                ) : null}
+              />
+              <Area type="monotone" dataKey="portfolio" name="Portfolio" stroke="#55d99a" fill="url(#portfolioArea)" strokeWidth={2} />
+              <Area type="monotone" dataKey="benchmark" name="S&P 500" stroke="rgba(255,255,255,0.38)" fill="transparent" strokeWidth={2} strokeDasharray="4 5" />
+            </AreaChart>
+          </ResponsiveContainer>
         </div>
 
-        {/* Right panel */}
-        <div className="flex flex-col gap-3">
-          {/* Allocation chart */}
-          <div className="glass-panel p-4 rounded-xl">
-            <div className="flex items-center gap-2 mb-2">
-              <h3 className="text-xs font-semibold" style={{ color: '#94a3b8' }}>ALLOCATION</h3>
-              <div className="flex items-center gap-1 ml-auto">
-                {(['stock', 'sector'] as const).map(m => (
-                  <button key={m} onClick={() => setViewMode(m)}
-                    className="px-2 py-0.5 rounded text-[9px] font-medium transition-all capitalize"
-                    style={{ background: viewMode === m ? 'rgba(99,102,241,0.15)' : 'transparent', color: viewMode === m ? '#a5b4fc' : '#475569' }}
-                  >{m}</button>
+        <div className="workflow-card allocation-card">
+          <div className="workflow-card-header">
+            <div>
+              <span className="label-upper">Allocation</span>
+              <h2>Exposure</h2>
+            </div>
+            <div className="segmented-control small">
+              {(['stock', 'sector'] as const).map(mode => (
+                <button key={mode} onClick={() => setViewMode(mode)} className={viewMode === mode ? 'active' : ''}>{mode}</button>
+              ))}
+            </div>
+          </div>
+          <AllocationChart holdings={holdings} type={viewMode} size={260} />
+        </div>
+      </section>
+
+      <section className="portfolio-bottom-grid">
+        <div className="workflow-card holdings-card">
+          <div className="workflow-card-header">
+            <div>
+              <span className="label-upper">Holdings</span>
+              <h2>Current Positions</h2>
+            </div>
+            <button onClick={() => setDrawerOpen(true)} className="secondary-action"><Edit3 size={14} /> Edit Holdings</button>
+          </div>
+          <div className="clean-table-wrap">
+            <table className="clean-holdings-table">
+              <thead>
+                <tr>
+                  <th>Holding</th>
+                  <th>Shares</th>
+                  <th>Current</th>
+                  <th>Value</th>
+                  <th>P/L</th>
+                  <th>Weight</th>
+                </tr>
+              </thead>
+              <tbody>
+                {holdings.map(holding => (
+                  <tr key={holding.symbol}>
+                    <td>
+                      <div className="holding-identity">
+                        <i style={{ background: SECTOR_COLORS[holding.sector] || '#8aa4ff' }} />
+                        <div>
+                          <strong>{holding.symbol}</strong>
+                          <span>{holding.name}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>{holding.shares}</td>
+                    <td>{formatCurrency(holding.currentPrice)}</td>
+                    <td>{formatCurrency(holding.value)}</td>
+                    <td>
+                      <strong className={holding.gainLoss >= 0 ? 'positive' : 'negative'}>{formatPercent(holding.gainLossPercent)}</strong>
+                      <span>{formatCurrency(holding.gainLoss)}</span>
+                    </td>
+                    <td>
+                      <div className="readable-weight">
+                        <i style={{ width: `${holding.weight * 100}%` }} />
+                        <span>{(holding.weight * 100).toFixed(0)}%</span>
+                      </div>
+                    </td>
+                  </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="side-stack">
+          <div className="workflow-card risk-contribution-card">
+            <div className="workflow-card-header">
+              <div>
+                <span className="label-upper">Risk Contribution</span>
+                <h2>By Holding</h2>
               </div>
             </div>
-            <AllocationChart holdings={holdings} type={viewMode} size={200} />
+            <ResponsiveContainer width="100%" height={230}>
+              <BarChart data={riskContribution} layout="vertical" margin={{ left: 6, right: 14 }}>
+                <CartesianGrid horizontal={false} />
+                <XAxis type="number" axisLine={false} tickLine={false} tickFormatter={(value) => `${value}%`} />
+                <YAxis type="category" dataKey="symbol" axisLine={false} tickLine={false} width={42} />
+                <Tooltip
+                  cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                  content={({ active, payload, label }) => active && payload?.length ? (
+                    <div className="cs-tooltip">
+                      <strong>{label}</strong>
+                      <div>{payload[0].value}% estimated contribution</div>
+                    </div>
+                  ) : null}
+                />
+                <Bar dataKey="contribution" fill="#8aa4ff" radius={[0, 8, 8, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
-
-          {/* AI Insights */}
-          <AIInsightPanel insights={insights} title="Portfolio Analysis" />
-
+          {holdings.length > 0 && <PortfolioReviewCard holdings={holdings} diversScore={diversScore} />}
           <Disclaimer />
         </div>
-      </div>
+      </section>
+
+      {drawerOpen && (
+        <div className="drawer-backdrop" onClick={() => setDrawerOpen(false)}>
+          <aside className="edit-holdings-drawer" onClick={event => event.stopPropagation()}>
+            <div className="drawer-header">
+              <div>
+                <span className="label-upper">Edit Holdings</span>
+                <h2>Portfolio Inputs</h2>
+              </div>
+              <button onClick={() => setDrawerOpen(false)}><X size={18} /></button>
+            </div>
+
+            <div className="drawer-add-card">
+              <StockSearch
+                onSelect={sym => setForm(f => ({ ...f, symbol: sym, avgCost: STOCK_DATABASE[sym]?.price || 100 }))}
+                placeholder="Search ticker..."
+              />
+              <div className="drawer-form-grid">
+                <label>Shares<input type="number" value={form.shares} min={1} onChange={e => setForm(f => ({ ...f, shares: Number(e.target.value) }))} /></label>
+                <label>Avg cost<input type="number" value={form.avgCost} min={0.01} step={0.01} onChange={e => setForm(f => ({ ...f, avgCost: Number(e.target.value) }))} /></label>
+                <label>Weight %<input type="number" value={(form.weight * 100).toFixed(0)} min={0} max={100} onChange={e => setForm(f => ({ ...f, weight: Number(e.target.value) / 100 }))} /></label>
+              </div>
+              <button onClick={handleAdd} disabled={!form.symbol || addLoading} className="workflow-primary-action">
+                <Plus size={16} /> {addLoading ? 'Adding...' : `Add ${form.symbol || 'Holding'}`}
+              </button>
+            </div>
+
+            <div className="drawer-holdings-list">
+              {holdings.map(holding => (
+                <div key={holding.symbol} className="drawer-holding-row">
+                  <div>
+                    <strong>{holding.symbol}</strong>
+                    <span>{holding.sector}</span>
+                  </div>
+                  <label>
+                    Weight
+                    <input type="number" value={(holding.weight * 100).toFixed(0)} min={0} max={100} onChange={e => updateWeight(holding.symbol, Number(e.target.value) / 100)} />
+                  </label>
+                  <button onClick={() => removeHolding(holding.symbol)}><Trash2 size={15} /></button>
+                </div>
+              ))}
+            </div>
+
+            <button onClick={normalizeWeights} className="drawer-secondary-action"><RefreshCw size={15} /> Normalize Weights</button>
+          </aside>
+        </div>
+      )}
     </div>
   );
 }

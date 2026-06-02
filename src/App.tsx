@@ -13,6 +13,7 @@ import ModelBuilder from './pages/agents/ModelBuilder';
 import TerminalPage from './pages/Terminal';
 import StockResearch from './pages/StockResearch';
 import GoldMiningScanner from './pages/GoldMiningScanner';
+import PaperTrading from './pages/PaperTrading';
 
 export default function App() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="montecarlo" element={<MonteCarloLab />} />
           <Route path="scenarios"  element={<ScenarioSimulator />} />
           <Route path="watchlist"  element={<Watchlist />} />
+          <Route path="paper-trading" element={<PaperTrading />} />
           {/* AI Agents */}
           <Route path="agents/earnings" element={<EarningsReviewer />} />
           <Route path="agents/research" element={<MarketResearchAgent />} />

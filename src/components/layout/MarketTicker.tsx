@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react';
 import { MARKET_INDICES } from '../../data/mockStocks';
 
+const FOCUS_SYMBOLS = ['SPY', 'QQQ', 'BTC', 'VIX', '10Y', 'DXY'];
+const SYMBOL_ALIASES: Record<string, string> = {
+  'S&P 500': 'SPY',
+  NASDAQ: 'QQQ',
+  'BTC/USD': 'BTC',
+  '10Y YIELD': '10Y',
+};
+
 export default function MarketTicker() {
   const [indices, setIndices] = useState(MARKET_INDICES);
 
@@ -15,48 +23,33 @@ export default function MarketTicker() {
     return () => clearInterval(interval);
   }, []);
 
-  const items = [...indices, ...indices];
+  const normalized = indices
+    .map(item => ({ ...item, symbol: SYMBOL_ALIASES[item.symbol] ?? item.symbol }))
+    .filter(item => FOCUS_SYMBOLS.includes(item.symbol));
+  const order = Object.fromEntries(FOCUS_SYMBOLS.map((symbol, index) => [symbol, index]));
+  const items = normalized.sort((a, b) => order[a.symbol] - order[b.symbol]);
 
   return (
-    <div
-      className="h-7 overflow-hidden flex items-center shrink-0"
-      style={{ background: 'rgba(7,7,11,0.98)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
-    >
-      {/* LIVE badge */}
-      <div
-        className="flex items-center gap-1.5 px-3 shrink-0"
-        style={{ borderRight: '1px solid rgba(255,255,255,0.05)', height: '100%' }}
-      >
-        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 pulse-live" />
-        <span className="font-mono text-[10px] font-semibold tracking-widest" style={{ color: 'rgba(255,255,255,0.25)' }}>LIVE</span>
-      </div>
-
-      {/* Scrolling ticker */}
-      <div className="overflow-hidden flex-1">
-        <div className="ticker-scroll flex items-center gap-0 whitespace-nowrap w-fit">
+    <div className="market-strip">
+      <div className="mx-auto flex h-full w-full max-w-[1440px] items-center justify-center gap-1 px-6">
           {items.map((item, i) => (
             <div
               key={i}
-              className="flex items-center gap-2 px-4"
-              style={{ borderRight: '1px solid rgba(255,255,255,0.04)', height: 28 }}
+              className="market-strip-item"
             >
-              <span className="font-mono text-[10px] font-medium" style={{ color: 'rgba(255,255,255,0.35)' }}>{item.symbol}</span>
-              <span className="font-mono text-[10px] font-bold" style={{ color: 'rgba(255,255,255,0.72)' }}>
+              <span className="market-strip-symbol">{item.symbol}</span>
+              <span className="market-strip-price">
                 {item.symbol === 'EUR/USD'
                   ? item.price.toFixed(4)
                   : item.price >= 1000
                     ? item.price.toLocaleString('en-US', { maximumFractionDigits: 0 })
                     : item.price.toFixed(2)}
               </span>
-              <span
-                className="font-mono text-[10px]"
-                style={{ color: item.change >= 0 ? 'rgba(34,197,94,0.85)' : 'rgba(244,63,94,0.85)' }}
-              >
+              <span className={item.change >= 0 ? 'market-strip-up' : 'market-strip-down'}>
                 {item.change >= 0 ? '+' : ''}{item.change.toFixed(2)}%
               </span>
             </div>
           ))}
-        </div>
       </div>
     </div>
   );

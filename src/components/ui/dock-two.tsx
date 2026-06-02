@@ -1,6 +1,6 @@
 // dock-two.tsx — adapted for Vite/React dark theme (no shadcn CSS vars)
 import * as React from "react";
-import { motion } from "framer-motion";
+import { motion, type Variants } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 
@@ -17,11 +17,11 @@ interface DockProps {
 }
 
 /* subtle continuous float — the whole pill breathes vertically */
-const floatingAnimation = {
+const floatingAnimation: Variants = {
   initial: { y: 0 },
   animate: {
     y: [-2, 2, -2],
-    transition: { duration: 5, repeat: Infinity, ease: "easeInOut" },
+    transition: { duration: 5, repeat: Infinity, ease: [0.42, 0, 0.58, 1] },
   },
 };
 

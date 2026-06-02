@@ -7,10 +7,10 @@ interface AIInsightCardProps {
 }
 
 const TYPE_CONFIG = {
-  info: { icon: Info, color: '#3b82f6', bg: 'rgba(59,130,246,0.08)', border: 'rgba(59,130,246,0.2)', label: 'INSIGHT' },
-  warning: { icon: AlertTriangle, color: '#f59e0b', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.2)', label: 'WARNING' },
-  opportunity: { icon: TrendingUp, color: '#10b981', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.2)', label: 'SIGNAL' },
-  risk: { icon: Shield, color: '#ef4444', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.2)', label: 'RISK' },
+  info: { icon: Info, color: 'var(--blue)', bg: 'rgba(255,255,255,0.018)', border: 'rgba(255,255,255,0.05)', label: 'Context' },
+  warning: { icon: AlertTriangle, color: 'var(--amber)', bg: 'rgba(255,255,255,0.018)', border: 'rgba(255,255,255,0.05)', label: 'Watch' },
+  opportunity: { icon: TrendingUp, color: 'var(--green)', bg: 'rgba(255,255,255,0.018)', border: 'rgba(255,255,255,0.05)', label: 'Supportive' },
+  risk: { icon: Shield, color: 'var(--red)', bg: 'rgba(255,255,255,0.018)', border: 'rgba(255,255,255,0.05)', label: 'Risk' },
 };
 
 export default function AIInsightCard({ insight, delay = 0 }: AIInsightCardProps) {
@@ -36,7 +36,7 @@ export default function AIInsightCard({ insight, delay = 0 }: AIInsightCardProps
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-[9px] font-semibold tracking-wider px-1.5 py-0.5 rounded" style={{ background: `${config.color}20`, color: config.color, letterSpacing: '0.1em' }}>
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,255,255,0.045)', color: config.color }}>
               {config.label}
             </span>
             {insight.metric && (
@@ -45,8 +45,8 @@ export default function AIInsightCard({ insight, delay = 0 }: AIInsightCardProps
               </span>
             )}
           </div>
-          <h4 className="text-xs font-semibold mb-1" style={{ color: '#e2e8f0' }}>{insight.title}</h4>
-          <p className="text-[11px] leading-relaxed" style={{ color: '#64748b' }}>{insight.body}</p>
+          <h4 className="text-sm font-semibold mb-1" style={{ color: 'var(--text-hi)' }}>{insight.title}</h4>
+          <p className="text-xs leading-relaxed" style={{ color: 'var(--text-mid)' }}>{insight.body}</p>
         </div>
       </div>
     </div>
@@ -60,15 +60,18 @@ interface AIInsightPanelProps {
 
 export function AIInsightPanel({ insights, title = 'AI Insights' }: AIInsightPanelProps) {
   return (
-    <div className="glass-panel p-4 rounded-xl">
-      <div className="flex items-center gap-2 mb-4">
-        <div className="w-5 h-5 rounded-md flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
-          <span className="text-[9px] font-bold text-white">AI</span>
+    <div className="glass-panel p-6 rounded-xl">
+      <div className="flex items-start gap-3 mb-5">
+        <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.055)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <span className="text-[10px] font-bold" style={{ color: 'var(--green)' }}>CS</span>
         </div>
-        <h3 className="text-xs font-semibold" style={{ color: '#94a3b8' }}>{title}</h3>
+        <div>
+          <h3 className="text-base font-semibold" style={{ color: 'var(--text-hi)' }}>{title}</h3>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-lo)' }}>Confidence 74 · neutral risk tone · review required</p>
+        </div>
         <div className="flex-1" />
-        <span className="text-[9px] px-2 py-0.5 rounded-full font-mono" style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1', border: '1px solid rgba(99,102,241,0.2)' }}>
-          EDUCATIONAL ONLY
+        <span className="text-[10px] px-2.5 py-1 rounded-full font-mono" style={{ background: 'rgba(255,255,255,0.04)', color: 'var(--text-lo)', border: '1px solid rgba(255,255,255,0.05)' }}>
+          REVIEW
         </span>
       </div>
       <div className="flex flex-col gap-2.5">
@@ -76,8 +79,8 @@ export function AIInsightPanel({ insights, title = 'AI Insights' }: AIInsightPan
           <AIInsightCard key={i} insight={insight} delay={i * 80} />
         ))}
       </div>
-      <p className="text-[9px] mt-3 text-center leading-relaxed" style={{ color: '#334155' }}>
-        ⚠ For educational purposes only. Not financial advice. Always consult a qualified financial advisor.
+      <p className="text-[10px] mt-4 leading-relaxed" style={{ color: 'var(--text-lo)' }}>
+        Educational analysis only. Not financial advice. Verify all data independently before making investment decisions.
       </p>
     </div>
   );

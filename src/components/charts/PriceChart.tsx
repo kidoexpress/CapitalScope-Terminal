@@ -101,12 +101,12 @@ export default function PriceChart({ symbol, currentPrice, compareSymbol, height
         <AreaChart data={data} margin={{ top: 4, right: 2, bottom: 0, left: -8 }}>
           <defs>
             <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%"   stopColor={isPositive ? '#22c55e' : '#f43f5e'} stopOpacity={0.18} />
-              <stop offset="100%" stopColor={isPositive ? '#22c55e' : '#f43f5e'} stopOpacity={0} />
+              <stop offset="0%"   stopColor={isPositive ? '#55d99a' : '#ec6f86'} stopOpacity={0.16} />
+              <stop offset="100%" stopColor={isPositive ? '#55d99a' : '#ec6f86'} stopOpacity={0} />
             </linearGradient>
             <linearGradient id="grad-compare" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%"   stopColor="#7c6cf0" stopOpacity={0.14} />
-              <stop offset="100%" stopColor="#7c6cf0" stopOpacity={0} />
+              <stop offset="0%"   stopColor="#7da7ff" stopOpacity={0.12} />
+              <stop offset="100%" stopColor="#7da7ff" stopOpacity={0} />
             </linearGradient>
           </defs>
 
@@ -146,7 +146,7 @@ export default function PriceChart({ symbol, currentPrice, compareSymbol, height
             domain={['auto', 'auto']}
           />
 
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.12)', strokeWidth: 1 }} />
 
           {showCompare && (
             <ReferenceLine y={0} stroke="rgba(255,255,255,0.08)" strokeDasharray="4 4" />
@@ -167,12 +167,12 @@ export default function PriceChart({ symbol, currentPrice, compareSymbol, height
             <Area
               type="monotone"
               dataKey="compareChange"
-              stroke="#7c6cf0"
+              stroke="#7da7ff"
               strokeWidth={1.5}
               strokeDasharray="5 3"
               fill="url(#grad-compare)"
               dot={false}
-              activeDot={{ r: 4, fill: '#7c6cf0', stroke: 'var(--bg-base)', strokeWidth: 2 }}
+              activeDot={{ r: 4, fill: '#7da7ff', stroke: 'var(--bg-base)', strokeWidth: 2 }}
               name={compareSymbol}
             />
           )}

@@ -6,8 +6,8 @@ import {
   TrendingUp, BarChart2, FlaskConical, Zap, FileText, ScanSearch, Activity,
   Briefcase, ShieldCheck, Star, BookOpen, TerminalSquare, Calculator,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { CanvasRevealEffect } from "@/components/ui/canvas-reveal-effect";
-import { Dock } from "@/components/ui/dock-two";
 import { CapitalScopeFooter } from "@/components/ui/hover-footer";
 
 /* ─── Shared container ───────────────────────────────────────── */
@@ -78,7 +78,7 @@ function RotatingWord() {
 
 /* ─── Feature data ───────────────────────────────────────────── */
 interface Feature {
-  icon: React.ElementType;
+  icon: LucideIcon;
   title: string;
   desc: string;
   path: string;
@@ -363,36 +363,94 @@ function ResearchPreview() {
 /* ─── Landing dock — every icon links to a real tool ────────── */
 function LandingDock() {
   const navigate = useNavigate();
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    const onScroll = () => {
+      const y = window.scrollY;
+      setVisible(prev => {
+        if (y < 40) return true;
+        if (y > 80) return false;
+        return prev;
+      });
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const items = [
-    { icon: TrendingUp,    label: "Stock Analyzer",      onClick: () => navigate("/analyzer")        },
-    { icon: Briefcase,     label: "Portfolio Builder",    onClick: () => navigate("/portfolio")       },
-    { icon: ShieldCheck,   label: "Risk Dashboard",       onClick: () => navigate("/risk")            },
-    { icon: FlaskConical,  label: "Monte Carlo Lab",      onClick: () => navigate("/montecarlo")      },
-    { icon: Zap,           label: "Scenario Simulator",   onClick: () => navigate("/scenarios")       },
-    { icon: Star,          label: "Watchlist",            onClick: () => navigate("/watchlist")       },
-    { icon: FileText,      label: "Earnings Reviewer",    onClick: () => navigate("/agents/earnings") },
-    { icon: BarChart2,     label: "Market Research AI",   onClick: () => navigate("/agents/research") },
-    { icon: Calculator,    label: "Model Builder",        onClick: () => navigate("/agents/model")    },
-    { icon: BookOpen,      label: "Deep Dive Research",   onClick: () => navigate("/research")        },
-    { icon: ScanSearch,    label: "Gold Scanner",         onClick: () => navigate("/scanner")         },
-    { icon: TerminalSquare,label: "Terminal",             onClick: () => navigate("/terminal")        },
+    { label: "Analyzer",      onClick: () => navigate("/analyzer")        },
+    { label: "Portfolio",     onClick: () => navigate("/portfolio")       },
+    { label: "Risk",          onClick: () => navigate("/risk")            },
+    { label: "Research",      onClick: () => navigate("/agents/research") },
+    { label: "Models",        onClick: () => navigate("/agents/model")    },
+    { label: "Terminal",      onClick: () => navigate("/terminal")        },
   ];
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: -12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.45, ease: "easeOut" }}
+      initial={{ opacity: 0, y: -12, x: "-50%" }}
+      animate={{
+        opacity: visible ? 1 : 0,
+        y: visible ? 0 : -14,
+        x: "-50%",
+      }}
+      transition={{ duration: 0.18, ease: "easeOut" }}
       style={{
         position: "fixed",
-        top: 20,
+        top: 24,
         left: "50%",
-        transform: "translateX(-50%)",
         zIndex: 50,
+        width: "max-content",
+        pointerEvents: visible ? "auto" : "none",
       }}
     >
-      <Dock items={items} />
+      <nav
+        aria-label="Primary"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 4,
+          padding: "7px",
+          borderRadius: 999,
+          background: "rgba(8,10,14,0.74)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          backdropFilter: "blur(20px)",
+          boxShadow: "0 16px 48px rgba(0,0,0,0.32)",
+        }}
+      >
+        {items.map(item => (
+          <button
+            key={item.label}
+            onClick={item.onClick}
+            style={{
+              height: 36,
+              minWidth: 92,
+              padding: "0 16px",
+              border: "none",
+              borderRadius: 999,
+              background: "transparent",
+              color: "rgba(255,255,255,0.62)",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              transition: "background 150ms ease, color 150ms ease",
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+              e.currentTarget.style.color = "rgba(255,255,255,0.92)";
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = "transparent";
+              e.currentTarget.style.color = "rgba(255,255,255,0.62)";
+            }}
+          >
+            {item.label}
+          </button>
+        ))}
+      </nav>
     </motion.div>
   );
 }
@@ -474,37 +532,11 @@ export default function Landing() {
             textAlign: "center",
           }}
         >
-          {/* Live badge */}
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.12, duration: 0.5 }}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 8,
-              padding: "5px 16px",
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.09)",
-              borderRadius: 100,
-              marginBottom: 32,
-            }}
-          >
-            <div
-              style={{
-                width: 6, height: 6, borderRadius: "50%",
-                background: "#22c55e",
-                boxShadow: "0 0 8px rgba(34,197,94,0.7)",
-              }}
-            />
-            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.52)", fontWeight: 500 }}>
-              AI-Powered · Real-time Data · Professional Grade
-            </span>
-          </motion.div>
-
           {/* Headline with rotating word */}
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.22, duration: 0.55 }}
+            transition={{ delay: 0.14, duration: 0.55 }}
             style={{
               fontSize: "clamp(44px, 7vw, 84px)",
               fontWeight: 800,
@@ -523,7 +555,7 @@ export default function Landing() {
           <motion.p
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.32, duration: 0.5 }}
+            transition={{ delay: 0.24, duration: 0.5 }}
             style={{
               maxWidth: 560,
               margin: "0 auto 36px",
@@ -533,25 +565,25 @@ export default function Landing() {
               fontWeight: 400,
             }}
           >
-            Analyze stocks, review earnings, build financial models, and
-            stress-test portfolio risk — powered by real-time market data and AI agents.
+            A focused investment research workspace for stock analysis, portfolio risk,
+            market scenarios, earnings review, and valuation work.
           </motion.p>
 
           {/* CTA buttons */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.42, duration: 0.45 }}
+            transition={{ delay: 0.34, duration: 0.45 }}
             style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}
           >
             <button
               onClick={goLaunch}
               style={{
-                display: "flex", alignItems: "center", gap: 8,
-                padding: "14px 28px",
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "15px 30px",
                 background: "#fff", color: "#000",
                 border: "none", borderRadius: 100,
-                fontSize: 15, fontWeight: 700,
+                fontSize: 14, fontWeight: 700,
                 cursor: "pointer",
                 transition: "transform 0.2s, box-shadow 0.2s",
               }}
@@ -566,19 +598,19 @@ export default function Landing() {
                 el.style.boxShadow = "none";
               }}
             >
-              Launch Terminal <ArrowRight size={15} />
+              Open Terminal <ArrowRight size={15} />
             </button>
 
             <button
               onClick={() => document.getElementById("preview")?.scrollIntoView({ behavior: "smooth" })}
               style={{
-                display: "flex", alignItems: "center", gap: 8,
-                padding: "14px 28px",
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "15px 30px",
                 background: "rgba(255,255,255,0.07)",
                 color: "rgba(255,255,255,0.75)",
                 border: "1px solid rgba(255,255,255,0.1)",
                 borderRadius: 100,
-                fontSize: 15, fontWeight: 600,
+                fontSize: 14, fontWeight: 600,
                 cursor: "pointer",
                 transition: "background 0.2s, color 0.2s",
               }}

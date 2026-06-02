@@ -291,7 +291,7 @@ const Shader: React.FC<ShaderProps> = ({ source, uniforms, maxFps = 60 }) => {
       frameloop="always"
       gl={{ antialias: false, alpha: true }}
     >
-      <ShaderMaterialMesh source={source} uniforms={uniforms} maxFps={maxFps} />
+      <ShaderMaterialMesh source={source} uniforms={uniforms} />
     </Canvas>
   );
 };

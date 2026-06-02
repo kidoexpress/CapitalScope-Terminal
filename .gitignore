@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Local paper trading runtime state/cache
+paper_trading/.cache/
+paper_trading/__pycache__/
+paper_trading/portfolios_state.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
