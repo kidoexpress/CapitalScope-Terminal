@@ -2,10 +2,12 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useMemo } from "react";
 import {
-  ArrowRight, TrendingUp, BarChart2, FlaskConical,
-  Zap, FileText, ScanSearch, Activity,
+  ArrowRight,
+  TrendingUp, BarChart2, FlaskConical, Zap, FileText, ScanSearch, Activity,
+  Briefcase, ShieldCheck, Star, BookOpen, TerminalSquare, Calculator,
 } from "lucide-react";
 import { CanvasRevealEffect } from "@/components/ui/canvas-reveal-effect";
+import { Dock } from "@/components/ui/dock-two";
 
 /* ─── Shared container ───────────────────────────────────────── */
 const CONTAINER: React.CSSProperties = {
@@ -357,21 +359,28 @@ function ResearchPreview() {
   );
 }
 
-/* ─── Floating navbar ────────────────────────────────────────── */
-function FloatingNav({ onLaunch }: { onLaunch: () => void }) {
-  const [scrolled, setScrolled] = useState(false);
+/* ─── Landing dock — every icon links to a real tool ────────── */
+function LandingDock() {
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    const h = () => setScrolled(window.scrollY > 24);
-    window.addEventListener("scroll", h, { passive: true });
-    return () => window.removeEventListener("scroll", h);
-  }, []);
-
-  const navLinks = ["Research", "Preview", "Pricing", "Docs"];
+  const items = [
+    { icon: TrendingUp,    label: "Stock Analyzer",      onClick: () => navigate("/analyzer")        },
+    { icon: Briefcase,     label: "Portfolio Builder",    onClick: () => navigate("/portfolio")       },
+    { icon: ShieldCheck,   label: "Risk Dashboard",       onClick: () => navigate("/risk")            },
+    { icon: FlaskConical,  label: "Monte Carlo Lab",      onClick: () => navigate("/montecarlo")      },
+    { icon: Zap,           label: "Scenario Simulator",   onClick: () => navigate("/scenarios")       },
+    { icon: Star,          label: "Watchlist",            onClick: () => navigate("/watchlist")       },
+    { icon: FileText,      label: "Earnings Reviewer",    onClick: () => navigate("/agents/earnings") },
+    { icon: BarChart2,     label: "Market Research AI",   onClick: () => navigate("/agents/research") },
+    { icon: Calculator,    label: "Model Builder",        onClick: () => navigate("/agents/model")    },
+    { icon: BookOpen,      label: "Deep Dive Research",   onClick: () => navigate("/research")        },
+    { icon: ScanSearch,    label: "Gold Scanner",         onClick: () => navigate("/scanner")         },
+    { icon: TerminalSquare,label: "Terminal",             onClick: () => navigate("/terminal")        },
+  ];
 
   return (
-    <motion.header
-      initial={{ opacity: 0, y: -16 }}
+    <motion.div
+      initial={{ opacity: 0, y: -12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, ease: "easeOut" }}
       style={{
@@ -380,77 +389,10 @@ function FloatingNav({ onLaunch }: { onLaunch: () => void }) {
         left: "50%",
         transform: "translateX(-50%)",
         zIndex: 50,
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 2,
-        padding: "6px 6px 6px 8px",
-        borderRadius: 100,
-        background: scrolled ? "rgba(0,0,0,0.75)" : "rgba(0,0,0,0.38)",
-        border: "1px solid rgba(255,255,255,0.08)",
-        backdropFilter: "blur(20px)",
-        boxShadow: scrolled ? "0 8px 32px rgba(0,0,0,0.45)" : "none",
-        transition: "background 0.3s, box-shadow 0.3s",
       }}
     >
-      {/* Nav links */}
-      {navLinks.map(label => (
-        <a
-          key={label}
-          href={`#${label.toLowerCase()}`}
-          style={{
-            padding: "7px 16px",
-            fontSize: 14,
-            color: "rgba(255,255,255,0.48)",
-            borderRadius: 100,
-            textDecoration: "none",
-            transition: "color 0.18s, background 0.18s",
-            whiteSpace: "nowrap",
-          }}
-          onMouseEnter={e => {
-            const el = e.currentTarget as HTMLElement;
-            el.style.color = "#fff";
-            el.style.background = "rgba(255,255,255,0.08)";
-          }}
-          onMouseLeave={e => {
-            const el = e.currentTarget as HTMLElement;
-            el.style.color = "rgba(255,255,255,0.48)";
-            el.style.background = "transparent";
-          }}
-        >
-          {label}
-        </a>
-      ))}
-
-      {/* Divider */}
-      <div style={{ width: 1, height: 18, background: "rgba(255,255,255,0.1)", margin: "0 4px" }} />
-
-      {/* Launch button — pill inside the pill */}
-      <button
-        onClick={onLaunch}
-        style={{
-          display: "flex", alignItems: "center", gap: 6,
-          padding: "7px 16px",
-          background: "#fff", color: "#000",
-          border: "none", borderRadius: 100,
-          fontSize: 13, fontWeight: 700,
-          cursor: "pointer",
-          transition: "background 0.18s, transform 0.18s",
-          whiteSpace: "nowrap",
-        }}
-        onMouseEnter={e => {
-          const el = e.currentTarget as HTMLElement;
-          el.style.background = "rgba(255,255,255,0.86)";
-          el.style.transform = "scale(1.04)";
-        }}
-        onMouseLeave={e => {
-          const el = e.currentTarget as HTMLElement;
-          el.style.background = "#fff";
-          el.style.transform = "scale(1)";
-        }}
-      >
-        Launch Terminal <ArrowRight size={12} />
-      </button>
-    </motion.header>
+      <Dock items={items} />
+    </motion.div>
   );
 }
 
@@ -469,7 +411,7 @@ export default function Landing() {
         fontFamily: "Inter, -apple-system, sans-serif",
       }}
     >
-      <FloatingNav onLaunch={goLaunch} />
+      <LandingDock />
 
       {/* ── HERO ─────────────────────────────────────────── */}
       <section
