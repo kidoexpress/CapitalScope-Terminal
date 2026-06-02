@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import { AlertTriangle, Bot, RefreshCw } from 'lucide-react';
 import PortfolioPicker from '../components/PaperTrading/PortfolioPicker';
 import PortfolioSummary from '../components/PaperTrading/PortfolioSummary';
@@ -28,9 +28,20 @@ export default function PaperTrading() {
     clearError,
   } = usePaperTradingStore();
 
+  // Guard against React StrictMode double-invocation, which would cause
+  // loading shimmer to flash twice (true→false→true→false on mount).
+  const initialized = useRef(false);
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
     void loadPortfolios();
   }, [loadPortfolios]);
+
+  // Stable array/null references — avoids passing a new [] on every render
+  // which would cause recharts to unnecessarily re-animate the chart.
+  const equityCurve  = useMemo(() => report?.equityCurve      ?? [], [report]);
+  const holdings     = useMemo(() => activePortfolio?.holdings ?? [], [activePortfolio]);
+  const benchRows    = useMemo(() => report?.benchmarkComparison ?? [], [report]);
 
   return (
     <div className="workflow-page paper-page animate-fade-in-up">
@@ -80,14 +91,14 @@ export default function PaperTrading() {
         <main className="paper-main-stack">
           <PortfolioSummary metrics={report?.metrics ?? null} loading={loading && !report} />
           <EquityCurveChart
-            data={report?.equityCurve ?? []}
+            data={equityCurve}
             period={period}
             onPeriodChange={setPeriod}
             loading={loading && !report}
           />
           <div className="paper-lower-grid">
-            <HoldingsTable holdings={activePortfolio?.holdings ?? []} totalValue={activePortfolio?.totalValue ?? 0} loading={loading && !activePortfolio} />
-            <BenchmarkComparison metrics={report?.metrics ?? null} rows={report?.benchmarkComparison ?? []} />
+            <HoldingsTable holdings={holdings} totalValue={activePortfolio?.totalValue ?? 0} loading={loading && !activePortfolio} />
+            <BenchmarkComparison metrics={report?.metrics ?? null} rows={benchRows} />
           </div>
         </main>
 

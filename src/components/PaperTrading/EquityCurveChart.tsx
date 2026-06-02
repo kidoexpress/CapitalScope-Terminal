@@ -32,7 +32,7 @@ export default function EquityCurveChart({ data, period, onPeriodChange, loading
         </div>
       ) : (
         <div className="paper-chart-frame">
-          <ResponsiveContainer width="100%" height="100%" minWidth={320} minHeight={360}>
+          <ResponsiveContainer width="100%" height={380} debounce={60}>
             <AreaChart data={data}>
               <defs>
                 <linearGradient id="paperPortfolio" x1="0" y1="0" x2="0" y2="1">

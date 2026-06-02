@@ -134,9 +134,18 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
     const { start, end } = getDateRange(get().period);
     try {
       const report = await getPerformanceReport(id, start, end);
-      set({ report });
-    } catch (error) {
-      set({ report: null, error: error instanceof Error ? error.message : 'Metrics unavailable. Add holdings or check backend data feed.' });
+      // Clear any stale report-related error so the banner doesn't flash
+      set({ report, error: null });
+    } catch (err) {
+      // Only show the error banner if the portfolio has holdings (otherwise
+      // "no data" is expected and should not flash an error on the page).
+      const hasHoldings = (get().activePortfolio?.holdings.length ?? 0) > 0;
+      set({
+        report: null,
+        error: hasHoldings
+          ? (err instanceof Error ? err.message : 'Metrics unavailable. Check backend data feed.')
+          : null,
+      });
     }
   },
 }));
