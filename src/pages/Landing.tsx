@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { CanvasRevealEffect } from "@/components/ui/canvas-reveal-effect";
 import { Dock } from "@/components/ui/dock-two";
+import { CapitalScopeFooter } from "@/components/ui/hover-footer";
 
 /* ─── Shared container ───────────────────────────────────────── */
 const CONTAINER: React.CSSProperties = {
@@ -944,39 +945,7 @@ export default function Landing() {
       </section>
 
       {/* ── FOOTER ───────────────────────────────────────── */}
-      <footer style={{ borderTop: "1px solid rgba(255,255,255,0.05)", padding: "28px 0" }}>
-        <div
-          style={{
-            ...CONTAINER,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: 12,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div
-              style={{
-                width: 20, height: 20, borderRadius: 6,
-                background: "linear-gradient(135deg, #7c6cf0, #a78bfa)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}
-            >
-              <span style={{ color: "#fff", fontSize: 9, fontWeight: 800 }}>CS</span>
-            </div>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.32)" }}>
-              CapitalScope
-            </span>
-          </div>
-          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.14)", textAlign: "center" }}>
-            For educational purposes only. Not financial advice.
-          </p>
-          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.14)" }}>
-            © {new Date().getFullYear()} CapitalScope
-          </p>
-        </div>
-      </footer>
+      <CapitalScopeFooter />
     </div>
   );
 }
