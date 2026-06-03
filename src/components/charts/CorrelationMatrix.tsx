@@ -4,7 +4,7 @@ import { getStockHistory } from '../../utils/api';
 
 interface CorrelationMatrixProps {
   symbols: string[];
-  prices?: Record<string, number>;
+  prices?: Record<string, number[]>;
 }
 
 function getCorrelationColor(value: number): string {
@@ -28,6 +28,23 @@ function getCorrelationLabel(value: number): string {
   return 'Neg High';
 }
 
+function pearson(a: number[], b: number[]): number {
+  const n = Math.min(a.length, b.length);
+  if (n < 10) return 0;
+  const ra = a.slice(-n).map((v, i) => (i > 0 ? (v - a[a.length - n + i - 1]) / a[a.length - n + i - 1] : 0)).slice(1);
+  const rb = b.slice(-n).map((v, i) => (i > 0 ? (v - b[b.length - n + i - 1]) / b[b.length - n + i - 1] : 0)).slice(1);
+  const ma = ra.reduce((s, v) => s + v, 0) / ra.length;
+  const mb = rb.reduce((s, v) => s + v, 0) / rb.length;
+  let num = 0, da = 0, db = 0;
+  for (let i = 0; i < ra.length; i++) {
+    num += (ra[i] - ma) * (rb[i] - mb);
+    da += (ra[i] - ma) ** 2;
+    db += (rb[i] - mb) ** 2;
+  }
+  const denom = Math.sqrt(da * db);
+  return denom === 0 ? 0 : Math.max(-1, Math.min(1, num / denom));
+}
+
 export default function CorrelationMatrix({ symbols, prices }: CorrelationMatrixProps) {
   const [matrix, setMatrix] = useState<number[][]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,21 +54,37 @@ export default function CorrelationMatrix({ symbols, prices }: CorrelationMatrix
     if (symbols.length < 2) { setLoading(false); return; }
     setLoading(true);
 
-    Promise.all(symbols.map(sym =>
-      getStockHistory(sym, '1Y', prices?.[sym]).then(h => h.map(p => p.close))
-    )).then(allPrices => {
-      const returns = allPrices.map(getDailyReturns);
+    // If caller pre-fetched real price history arrays, use them directly with Pearson.
+    // Otherwise fall back to getStockHistory for backward compatibility.
+    const hasRealHistory = symbols.every(sym => (prices?.[sym]?.length ?? 0) > 20);
+
+    if (hasRealHistory && prices) {
       const n = symbols.length;
       const m: number[][] = Array.from({ length: n }, () => Array(n).fill(0));
       for (let i = 0; i < n; i++) {
         for (let j = 0; j < n; j++) {
-          m[i][j] = i === j ? 1 : +calcCorrelation(returns[i], returns[j]).toFixed(3);
+          m[i][j] = i === j ? 1 : +pearson(prices[symbols[i]], prices[symbols[j]]).toFixed(3);
         }
       }
       setMatrix(m);
       setLoading(false);
-    });
-  }, [symbols.join(',')]);
+    } else {
+      Promise.all(symbols.map(sym =>
+        getStockHistory(sym, '1Y').then(h => h.map(p => p.close))
+      )).then(allPrices => {
+        const returns = allPrices.map(getDailyReturns);
+        const n = symbols.length;
+        const m: number[][] = Array.from({ length: n }, () => Array(n).fill(0));
+        for (let i = 0; i < n; i++) {
+          for (let j = 0; j < n; j++) {
+            m[i][j] = i === j ? 1 : +calcCorrelation(returns[i], returns[j]).toFixed(3);
+          }
+        }
+        setMatrix(m);
+        setLoading(false);
+      });
+    }
+  }, [symbols.join(','), prices]);
 
   if (loading) return <div className="shimmer h-64 rounded-xl" />;
   if (symbols.length < 2) return (

@@ -224,9 +224,15 @@ export default function PortfolioBuilder() {
               <Area type="monotone" dataKey="benchmark" name="S&P 500" stroke="rgba(255,255,255,0.38)" fill="transparent" strokeWidth={2} strokeDasharray="4 5" />
             </AreaChart>
           </ResponsiveContainer>
-          {/* Disclaimer — chart uses illustrative simulated returns, not real historical data */}
-          <p style={{ fontSize: 10, color: 'var(--text-lo)', marginTop: 8, textAlign: 'center' }}>
-            Illustrative only — returns are simulated, not based on actual historical prices
+          <p style={{
+            fontSize: 11,
+            color: 'var(--text-lo)',
+            textAlign: 'center',
+            marginTop: 10,
+            opacity: 0.65,
+            fontStyle: 'italic',
+          }}>
+            Illustrative simulation — based on current P&L, not actual historical price data
           </p>
         </div>
 

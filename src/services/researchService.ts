@@ -124,6 +124,29 @@ const PEER_DB: Record<string, PeerMock> = {
   AEHR:  { name: 'Aehr Test Systems',        sector: 'Semiconductors',      psTTM: 8.4,  forwardPS: 6.2,  evEbitda: 22.4, grossMargin: 54.8, yoyGrowth: 18.4  },
 };
 
+// Fetch live fundamentals from the FastAPI backend (yfinance-powered).
+// Falls back gracefully to PEER_DB if the backend is offline or ticker not found.
+async function fetchLiveFundamentals(ticker: string): Promise<Partial<PeerMock> | null> {
+  try {
+    const res = await fetch(`/api/portfolio/fundamentals/${ticker}`, {
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return {
+      name: data.name,
+      sector: data.sector,
+      psTTM: data.psTTM ?? 0,
+      forwardPS: data.psTTM ?? 0,
+      evEbitda: data.evEbitda ?? null,
+      grossMargin: data.grossMargin ?? 0,
+      yoyGrowth: data.yoyGrowth ?? 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ─── Core Claude caller ───────────────────────────────────────
 
 async function callClaude(
@@ -436,10 +459,20 @@ export async function runScanner(
   filters: ScannerFilters,
   onChunk?: (text: string) => void
 ): Promise<ScannerResult[]> {
-  // Build data snapshot for Claude
+  // Enrich PEER_DB entries with live data where the backend is reachable
+  const enrichedDB: Record<string, PeerMock> = { ...PEER_DB };
+  await Promise.all(
+    SCANNER_UNIVERSE.map(async (t) => {
+      const live = await fetchLiveFundamentals(t);
+      if (live && live.psTTM != null && live.yoyGrowth != null && live.grossMargin != null) {
+        enrichedDB[t] = { ...PEER_DB[t], ...live } as PeerMock;
+      }
+    })
+  );
+
   const universe = SCANNER_UNIVERSE
     .filter(t => {
-      const d = PEER_DB[t];
+      const d = enrichedDB[t];
       if (!d) return false;
       if (filters.sectors.length > 0 && !filters.sectors.some(s => d.sector.includes(s))) return false;
       if (d.yoyGrowth < filters.minRevenueGrowth) return false;
@@ -448,7 +481,7 @@ export async function runScanner(
       return true;
     })
     .map(t => {
-      const d = PEER_DB[t]!;
+      const d = enrichedDB[t]!;
       return `${t} (${d.name}): P/S=${d.psTTM}x, GrMgn=${d.grossMargin}%, YoYGrowth=${d.yoyGrowth}%, EV/EBITDA=${d.evEbitda ?? 'N/M'}`;
     })
     .join('\n');
