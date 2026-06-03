@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { Holding } from '../../types/portfolio';
-import { formatCurrency, formatPercent } from '../../utils/finance';
+import { formatCurrency, formatPercent, formatPrice } from '../../utils/finance';
 
 interface Props {
   holdings: Holding[];
@@ -58,9 +58,9 @@ export default function HoldingsTable({ holdings, totalValue, loading }: Props) 
                 <tr key={holding.ticker}>
                   <td><strong>{holding.ticker}</strong></td>
                   <td>{holding.shares.toFixed(2)}</td>
-                  <td>{formatCurrency(holding.avgCost)}</td>
-                  <td>{formatCurrency(holding.currentPrice)}</td>
-                  <td className={holding.pnl >= 0 ? 'positive' : 'negative'}>{formatCurrency(holding.pnl)}</td>
+                  <td>{formatPrice(holding.avgCost, holding.ticker)}</td>
+                  <td>{formatPrice(holding.currentPrice, holding.ticker)}</td>
+                  <td className={holding.pnl >= 0 ? 'positive' : 'negative'}>{formatPrice(holding.pnl, holding.ticker)}</td>
                   <td className={holding.pnlPct >= 0 ? 'positive' : 'negative'}>{formatPercent(holding.pnlPct)}</td>
                   <td>{holding.weight.toFixed(1)}%</td>
                 </tr>

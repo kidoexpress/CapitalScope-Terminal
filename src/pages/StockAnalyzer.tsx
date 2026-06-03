@@ -13,7 +13,7 @@ import PriceChart from '../components/charts/PriceChart';
 import type { StockQuote, AIInsight } from '../types';
 import { getStockQuote, getStockHistory } from '../utils/api';
 import { DATA_SOURCE_LABEL } from '../services/marketDataService';
-import { calcAllMetrics, formatMarketCap, formatVolume, formatPercent, formatCurrency } from '../utils/finance';
+import { calcAllMetrics, formatMarketCap, formatVolume, formatPercent, formatCurrency, formatPrice, formatMarketCapForTicker } from '../utils/finance';
 import { usePortfolioStore } from '../store/portfolioStore';
 
 // ─── Insight generation ───────────────────────────────────────
@@ -276,7 +276,7 @@ export default function StockAnalyzer() {
                 className="font-mono font-bold"
                 style={{ fontSize: 48, color: 'var(--text-hi)', letterSpacing: '-0.04em', lineHeight: 1 }}
               >
-                {formatCurrency(quote.price)}
+                {formatPrice(quote.price, quote.symbol)}
               </div>
               <div className="flex items-center gap-2">
                 {isUp
@@ -287,7 +287,7 @@ export default function StockAnalyzer() {
                   className="font-mono text-lg font-semibold"
                   style={{ color: isUp ? 'var(--green)' : 'var(--red)' }}
                 >
-                  {isUp ? '+' : ''}{formatCurrency(quote.change)} ({formatPercent(quote.changePercent)})
+                  {isUp ? '+' : ''}{formatPrice(quote.change, quote.symbol)} ({formatPercent(quote.changePercent)})
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
@@ -300,7 +300,7 @@ export default function StockAnalyzer() {
           {/* Day range */}
           <div className="mt-6 flex items-center gap-3">
             <span className="font-mono text-xs" style={{ color: 'var(--text-lo)' }}>
-              {formatCurrency(quote.dayLow)}
+              {formatPrice(quote.dayLow, quote.symbol)}
             </span>
             <div className="flex-1 relative h-1 rounded-full" style={{ background: 'var(--bg-raised)' }}>
               <div
@@ -313,7 +313,7 @@ export default function StockAnalyzer() {
               />
             </div>
             <span className="font-mono text-xs" style={{ color: 'var(--text-lo)' }}>
-              {formatCurrency(quote.dayHigh)}
+              {formatPrice(quote.dayHigh, quote.symbol)}
             </span>
             <span className="text-xs" style={{ color: 'var(--text-lo)' }}>Day range</span>
           </div>
@@ -353,7 +353,7 @@ export default function StockAnalyzer() {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <MetricTile
           label="Market Cap"
-          value={quote.marketCap > 0 ? formatMarketCap(quote.marketCap) : '—'}
+          value={quote.marketCap > 0 ? formatMarketCapForTicker(quote.marketCap, quote.symbol) : '—'}
           hint="Total market capitalization"
         />
         <MetricTile
@@ -363,7 +363,7 @@ export default function StockAnalyzer() {
         />
         <MetricTile
           label="52W Range"
-          value={`${formatCurrency(quote.low52w)} – ${formatCurrency(quote.high52w)}`}
+          value={`${formatPrice(quote.low52w, quote.symbol)} – ${formatPrice(quote.high52w, quote.symbol)}`}
           hint="52-week price range"
         />
         <MetricTile
@@ -435,11 +435,11 @@ export default function StockAnalyzer() {
               >
                 {[
                   { label: 'Beta',           value: quote.beta.toFixed(2),                          hint: 'Market sensitivity' },
-                  { label: 'EPS',            value: quote.eps > 0 ? formatCurrency(quote.eps) : 'N/A', hint: 'Earnings per share' },
+                  { label: 'EPS',            value: quote.eps > 0 ? formatPrice(quote.eps, quote.symbol) : 'N/A', hint: 'Earnings per share' },
                   { label: 'Div Yield',      value: quote.dividendYield > 0 ? `${quote.dividendYield.toFixed(2)}%` : 'N/A', hint: 'Annual dividend yield' },
-                  { label: 'Previous Close', value: formatCurrency(quote.previousClose),             hint: '' },
-                  { label: 'Open',           value: formatCurrency(quote.open),                     hint: '' },
-                  { label: '52W High',       value: formatCurrency(quote.high52w),                  hint: '' },
+                  { label: 'Previous Close', value: formatPrice(quote.previousClose, quote.symbol),             hint: '' },
+                  { label: 'Open',           value: formatPrice(quote.open, quote.symbol),                     hint: '' },
+                  { label: '52W High',       value: formatPrice(quote.high52w, quote.symbol),                  hint: '' },
                 ].map(item => (
                   <div key={item.label} className="flex flex-col gap-1" title={item.hint}>
                     <span className="label-upper">{item.label}</span>

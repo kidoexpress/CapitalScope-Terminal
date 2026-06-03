@@ -1,133 +1,150 @@
 import { useState, useRef, useEffect } from 'react';
-import { Search, X } from 'lucide-react';
-import { searchStocks } from '../../utils/api';
-import { POPULAR_TICKERS, STOCK_DATABASE } from '../../data/mockStocks';
+import { Search } from 'lucide-react';
+import { STOCK_DATABASE } from '../../data/mockStocks';
+import { MARKETS, addSuffix, displayTicker } from '../../config/markets';
 
-interface StockSearchProps {
-  onSelect: (symbol: string) => void;
+interface Props {
+  onSelect: (ticker: string) => void;
   placeholder?: string;
-  className?: string;
 }
 
-export default function StockSearch({ onSelect, placeholder = 'Search ticker or company...', className = '' }: StockSearchProps) {
+export default function StockSearch({ onSelect, placeholder = 'Search ticker...' }: Props) {
   const [query, setQuery] = useState('');
+  const [marketId, setMarketId] = useState('US');
+  const [showMarkets, setShowMarkets] = useState(false);
   const [results, setResults] = useState<{ symbol: string; name: string; sector: string }[]>([]);
-  const [open, setOpen] = useState(false);
-  const [focused, setFocused] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const market = MARKETS.find(m => m.id === marketId) ?? MARKETS[0];
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
-        setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setShowMarkets(false);
+        setResults([]);
       }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  useEffect(() => {
-    if (query.length > 0) {
-      const r = searchStocks(query);
-      setResults(r);
-      setOpen(true);
-    } else {
-      // Show popular tickers
-      setResults(POPULAR_TICKERS.slice(0, 8).map(s => ({
-        symbol: s,
-        name: STOCK_DATABASE[s]?.name || s,
-        sector: STOCK_DATABASE[s]?.sector || 'Technology',
-      })));
-      setOpen(focused);
+  const handleChange = (value: string) => {
+    setQuery(value);
+    if (!value.trim()) { setResults([]); return; }
+    const q = value.toLowerCase();
+    const filtered = Object.values(STOCK_DATABASE)
+      .filter(s => {
+        const sym = (s.symbol ?? '').toLowerCase();
+        const name = (s.name ?? '').toLowerCase();
+        if (marketId === 'US') {
+          return !sym.includes('.') && (sym.includes(q) || name.includes(q));
+        }
+        return sym.endsWith(market.suffix.toLowerCase()) && (sym.includes(q) || name.includes(q) || displayTicker(sym).includes(q));
+      })
+      .map(s => ({ symbol: s.symbol ?? '', name: s.name ?? '', sector: s.sector ?? '' }))
+      .slice(0, 8);
+
+    // If no local results, build a live ticker from the input + suffix
+    if (filtered.length === 0 && value.trim().length >= 1) {
+      const rawTicker = value.trim().toUpperCase().replace(/\.(SA|L|DE|PA|T|HK)$/i, '');
+      const withSuffix = addSuffix(rawTicker, marketId);
+      filtered.push({ symbol: withSuffix, name: `Search: ${withSuffix}`, sector: market.name });
     }
-  }, [query, focused]);
+
+    setResults(filtered);
+  };
 
   const handleSelect = (symbol: string) => {
     onSelect(symbol);
     setQuery('');
-    setOpen(false);
-    inputRef.current?.blur();
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && results.length > 0) {
-      handleSelect(results[0].symbol);
-    }
-    if (e.key === 'Escape') {
-      setOpen(false);
-      inputRef.current?.blur();
-    }
+    setResults([]);
   };
 
   return (
-    <div ref={wrapperRef} className={`relative ${className}`}>
-      <div
-        className="flex items-center gap-2 px-3 py-2 rounded-xl transition-all duration-200"
-        style={{
-          background: 'rgba(12,12,26,0.8)',
-          border: `1px solid ${focused ? 'rgba(99,102,241,0.4)' : 'rgba(99,102,241,0.15)'}`,
-          boxShadow: focused ? '0 0 0 3px rgba(99,102,241,0.08)' : 'none',
-        }}
-      >
-        <Search size={14} style={{ color: '#475569', flexShrink: 0 }} />
-        <input
-          ref={inputRef}
-          type="text"
-          value={query}
-          onChange={e => setQuery(e.target.value.toUpperCase())}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setTimeout(() => setFocused(false), 150)}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          className="flex-1 text-sm bg-transparent outline-none font-mono"
-          style={{ color: '#e2e8f0', caretColor: '#6366f1', minWidth: 0 }}
-        />
-        {query && (
-          <button onClick={() => setQuery('')}>
-            <X size={12} style={{ color: '#475569' }} />
-          </button>
+    <div ref={ref} style={{ position: 'relative', display: 'flex', gap: 6 }}>
+      {/* Market selector button */}
+      <div style={{ position: 'relative' }}>
+        <button
+          onClick={() => setShowMarkets(v => !v)}
+          title={`Market: ${market.name}`}
+          style={{
+            height: 36, paddingInline: 10, borderRadius: 'var(--border-radius-md)',
+            background: 'var(--color-background-secondary)',
+            border: '0.5px solid var(--color-border-secondary)',
+            cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', gap: 4,
+            color: 'var(--color-text-primary)',
+          }}
+        >
+          <span>{market.flag}</span>
+          <span style={{ fontSize: 10, color: 'var(--color-text-secondary)', fontFamily: 'var(--font-mono)' }}>{market.id}</span>
+        </button>
+        {showMarkets && (
+          <div style={{
+            position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 100,
+            background: 'var(--color-background-primary)',
+            border: '0.5px solid var(--color-border-tertiary)',
+            borderRadius: 'var(--border-radius-lg)', overflow: 'hidden', minWidth: 180,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+          }}>
+            {MARKETS.map(m => (
+              <button
+                key={m.id}
+                onClick={() => { setMarketId(m.id); setShowMarkets(false); setQuery(''); setResults([]); }}
+                style={{
+                  width: '100%', padding: '8px 12px', textAlign: 'left',
+                  background: m.id === marketId ? 'var(--color-background-secondary)' : 'transparent',
+                  border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  color: 'var(--color-text-primary)', fontSize: 13,
+                }}
+              >
+                <span style={{ fontSize: 16 }}>{m.flag}</span>
+                <span>{m.name}</span>
+                <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--color-text-secondary)', fontFamily: 'var(--font-mono)' }}>{m.currencySymbol}</span>
+              </button>
+            ))}
+          </div>
         )}
       </div>
 
-      {open && results.length > 0 && (
-        <div
-          className="absolute left-0 right-0 top-full mt-1 rounded-xl overflow-hidden z-50"
-          style={{
-            background: 'rgba(8,8,20,0.98)',
-            border: '1px solid rgba(99,102,241,0.2)',
-            backdropFilter: 'blur(20px)',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
-          }}
-        >
-          {!query && (
-            <div className="px-3 pt-2.5 pb-1.5 text-[10px] font-semibold tracking-wider" style={{ color: '#334155', letterSpacing: '0.1em' }}>
-              POPULAR TICKERS
-            </div>
-          )}
-          {results.map((r) => (
+      {/* Search input */}
+      <div style={{ position: 'relative', flex: 1 }}>
+        <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-secondary)', pointerEvents: 'none' }} />
+        <input
+          type="text"
+          value={query}
+          onChange={e => handleChange(e.target.value)}
+          placeholder={`${placeholder} (${market.currencySymbol})`}
+          style={{ paddingLeft: 32 }}
+        />
+        {results.length > 0 && (
+          <div style={{
+            position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, zIndex: 100,
+            background: 'var(--color-background-primary)',
+            border: '0.5px solid var(--color-border-tertiary)',
+            borderRadius: 'var(--border-radius-lg)', overflow: 'hidden',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+          }}>
+            {results.map(r => (
               <button
                 key={r.symbol}
-                onMouseDown={() => handleSelect(r.symbol)}
-                className="w-full flex items-center gap-3 px-3 py-2.5 transition-all duration-100"
-                style={{ color: '#e2e8f0' }}
-                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'rgba(99,102,241,0.1)'}
-                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                onClick={() => handleSelect(r.symbol)}
+                style={{
+                  width: '100%', padding: '8px 12px', textAlign: 'left',
+                  background: 'transparent', border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-background-secondary)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
-                <div className="w-9 h-7 rounded-md flex items-center justify-center shrink-0" style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.15)' }}>
-                  <span className="text-[10px] font-mono font-bold" style={{ color: '#a5b4fc' }}>{r.symbol.slice(0, 4)}</span>
-                </div>
-                <div className="flex-1 text-left min-w-0">
-                  <div className="text-xs font-semibold font-mono" style={{ color: '#e2e8f0' }}>{r.symbol}</div>
-                  <div className="text-[10px] truncate" style={{ color: '#475569' }}>{r.name}</div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="text-[10px] font-mono" style={{ color: '#64748b' }}>Yahoo quote on select</div>
-                </div>
+                <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 500, fontSize: 13, color: 'var(--color-text-primary)', minWidth: 80 }}>{displayTicker(r.symbol)}</span>
+                <span style={{ fontSize: 12, color: 'var(--color-text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
+                <span style={{ fontSize: 10, color: 'var(--color-text-secondary)', flexShrink: 0 }}>{r.sector}</span>
               </button>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -176,12 +176,40 @@ export function formatVolume(n: number): string {
   return `${n}`;
 }
 
-export function formatCurrency(n: number, digits = 2): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency', currency: 'USD',
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
+export function formatCurrency(n: number, digits = 2, currency = 'USD', locale = 'en-US'): string {
+  const d = currency === 'JPY' ? 0 : digits;
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: d,
+    maximumFractionDigits: d,
   }).format(n);
+}
+
+/** Format a price using the correct currency for a given ticker symbol */
+export function formatPrice(n: number, ticker: string, digits = 2): string {
+  const upper = ticker.toUpperCase();
+  if (upper.endsWith('.SA')) return formatCurrency(n, digits, 'BRL', 'pt-BR');
+  if (upper.endsWith('.L'))  return formatCurrency(n, digits, 'GBP', 'en-GB');
+  if (upper.endsWith('.DE') || upper.endsWith('.PA')) return formatCurrency(n, digits, 'EUR', 'de-DE');
+  if (upper.endsWith('.T'))  return formatCurrency(n, 0,      'JPY', 'ja-JP');
+  if (upper.endsWith('.HK')) return formatCurrency(n, digits, 'HKD', 'zh-HK');
+  return formatCurrency(n, digits, 'USD', 'en-US');
+}
+
+/** Format market cap with correct currency abbreviation */
+export function formatMarketCapForTicker(n: number, ticker: string): string {
+  const upper = ticker.toUpperCase();
+  let symbol = '$';
+  if (upper.endsWith('.SA')) symbol = 'R$';
+  if (upper.endsWith('.L'))  symbol = '£';
+  if (upper.endsWith('.DE') || upper.endsWith('.PA')) symbol = '€';
+  if (upper.endsWith('.T'))  symbol = '¥';
+  if (upper.endsWith('.HK')) symbol = 'HK$';
+  if (n >= 1e12) return `${symbol}${(n / 1e12).toFixed(2)}T`;
+  if (n >= 1e9)  return `${symbol}${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6)  return `${symbol}${(n / 1e6).toFixed(1)}M`;
+  return `${symbol}${n.toFixed(0)}`;
 }
 
 export function formatPercent(n: number, digits = 2): string {

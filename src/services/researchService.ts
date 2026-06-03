@@ -122,6 +122,24 @@ const PEER_DB: Record<string, PeerMock> = {
   SOFI:  { name: 'SoFi Technologies',        sector: 'Financials',          psTTM: 3.8,  forwardPS: 3.1,  evEbitda: null, grossMargin: 68.4, yoyGrowth: 28.8  },
   RXRX:  { name: 'Recursion Pharmaceuticals',sector: 'Healthcare',          psTTM: 18.4, forwardPS: 12.8, evEbitda: null, grossMargin: 72.1, yoyGrowth: 42.6  },
   AEHR:  { name: 'Aehr Test Systems',        sector: 'Semiconductors',      psTTM: 8.4,  forwardPS: 6.2,  evEbitda: 22.4, grossMargin: 54.8, yoyGrowth: 18.4  },
+
+  // ── Brazil ──────────────────────────────────────────────────────────────
+  'WEGE3.SA': { name: 'WEG SA',               sector: 'Industrials',   psTTM: 8.4,  forwardPS: 7.2,  evEbitda: 22.1, grossMargin: 38.2, yoyGrowth: 18.4  },
+  'RENT3.SA': { name: 'Localiza',             sector: 'Consumer Disc.',psTTM: 2.8,  forwardPS: 2.4,  evEbitda: 12.8, grossMargin: 44.1, yoyGrowth: 14.2  },
+  'VALE3.SA': { name: 'Vale SA',              sector: 'Materials',     psTTM: 1.8,  forwardPS: 1.6,  evEbitda: 5.4,  grossMargin: 41.2, yoyGrowth: -4.8  },
+  'ITUB4.SA': { name: 'Itau Unibanco',        sector: 'Financials',    psTTM: 3.2,  forwardPS: 2.9,  evEbitda: null, grossMargin: 62.4, yoyGrowth: 12.8  },
+  'B3SA3.SA': { name: 'B3 SA',               sector: 'Financials',    psTTM: 5.8,  forwardPS: 5.2,  evEbitda: 14.2, grossMargin: 72.1, yoyGrowth: 8.4   },
+
+  // ── Europe ───────────────────────────────────────────────────────────────
+  'SAP.DE':   { name: 'SAP SE',               sector: 'Technology',    psTTM: 8.8,  forwardPS: 7.6,  evEbitda: 32.4, grossMargin: 71.2, yoyGrowth: 24.8  },
+  'ASML.AS':  { name: 'ASML Holding',         sector: 'Semiconductors',psTTM: 12.4, forwardPS: 10.2, evEbitda: 28.8, grossMargin: 51.6, yoyGrowth: 14.2  },
+  'AZN.L':    { name: 'AstraZeneca',          sector: 'Healthcare',    psTTM: 6.2,  forwardPS: 5.4,  evEbitda: 22.1, grossMargin: 82.4, yoyGrowth: 18.8  },
+  'MC.PA':    { name: 'LVMH',                 sector: 'Consumer Disc.',psTTM: 4.8,  forwardPS: 4.2,  evEbitda: 14.8, grossMargin: 68.4, yoyGrowth: 8.4   },
+
+  // ── Asia ─────────────────────────────────────────────────────────────────
+  '0700.HK':  { name: 'Tencent Holdings',     sector: 'Technology',    psTTM: 6.2,  forwardPS: 5.4,  evEbitda: 18.4, grossMargin: 47.2, yoyGrowth: 8.8   },
+  '9988.HK':  { name: 'Alibaba Group',        sector: 'Technology',    psTTM: 1.8,  forwardPS: 1.6,  evEbitda: 9.8,  grossMargin: 38.4, yoyGrowth: 4.2   },
+  '7203.T':   { name: 'Toyota Motor',         sector: 'Consumer Disc.',psTTM: 0.6,  forwardPS: 0.6,  evEbitda: 8.2,  grossMargin: 18.4, yoyGrowth: 12.4  },
 };
 
 // Fetch live fundamentals from the FastAPI backend (yfinance-powered).
@@ -433,8 +451,15 @@ export function buildPeerComparison(mainTicker: string, competitors: string[]): 
 // ─── Gold Mining Scanner ──────────────────────────────────────
 
 const SCANNER_UNIVERSE = [
+  // US
   'NVDA','AMD','CRWD','DDOG','NET','SHOP','MELI','PLTR','SNOW','COIN',
   'META','MSFT','AMZN','GOOGL','CRM','SOFI','UBER','RXRX','V','GS',
+  // Brazil
+  'WEGE3.SA','RENT3.SA','VALE3.SA','ITUB4.SA','B3SA3.SA',
+  // Europe
+  'SAP.DE','ASML.AS','AZN.L','MC.PA',
+  // Asia
+  '0700.HK','9988.HK','7203.T',
 ];
 
 const SCANNER_SYSTEM = `You are a quantitative equity research analyst running a stock screening process.

@@ -13,6 +13,7 @@ import type { ScannerResult, ScannerFilters } from '../services/researchService'
 const ALL_SECTORS = [
   'Technology', 'Semiconductors', 'Communication',
   'Consumer Disc.', 'Financials', 'Healthcare',
+  'Industrials', 'Materials', 'Energy',
 ];
 
 const DEFAULT_FILTERS: ScannerFilters = {

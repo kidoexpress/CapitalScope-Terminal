@@ -6,10 +6,13 @@ from .data_feed import get_historical_prices
 
 
 BENCHMARK_TICKERS = {
-    "SPY": "SPY",
-    "QQQ": "QQQ",
-    "BRK-B": "BRK-B",
-    "ARKK": "ARKK",
+    "SPY":    "SPY",
+    "QQQ":    "QQQ",
+    "BRK-B":  "BRK-B",
+    "ARKK":   "ARKK",
+    "BOVA11": "BOVA11.SA",   # IBOVESPA ETF (Brazil)
+    "ISF":    "ISF.L",        # FTSE 100 ETF (UK)
+    "EXS1":   "EXS1.DE",      # DAX ETF (Germany)
 }
 
 

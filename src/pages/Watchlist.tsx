@@ -17,7 +17,7 @@ import { useNavigate } from 'react-router-dom';
 import { usePortfolioStore } from '../store/portfolioStore';
 import { getStockQuote } from '../utils/api';
 import { DATA_SOURCE_LABEL, getSparkline } from '../services/marketDataService';
-import { formatCurrency, formatMarketCap, formatPercent, formatVolume } from '../utils/finance';
+import { formatCurrency, formatMarketCap, formatPercent, formatVolume, formatPrice, formatMarketCapForTicker } from '../utils/finance';
 import StockSearch from '../components/ui/StockSearch';
 import Sparkline from '../components/charts/Sparkline';
 import type { StockQuote } from '../types';
@@ -225,7 +225,7 @@ export default function Watchlist() {
                       <Star size={15} fill="currentColor" />
                     </div>
                     <div className="watch-price-row">
-                      <span>{formatCurrency(quote.price)}</span>
+                      <span>{formatPrice(quote.price, quote.symbol)}</span>
                       <em className={quote.changePercent >= 0 ? 'positive' : 'negative'}>
                         {quote.changePercent >= 0 ? <ArrowUpRight size={15} /> : <ArrowDownRight size={15} />}
                         {formatPercent(quote.changePercent)}
@@ -236,7 +236,7 @@ export default function Watchlist() {
                     </div>
                     <div className="watch-card-metrics">
                       <div><span>Volume</span><strong>{formatVolume(quote.volume)}</strong></div>
-                      <div><span>Mkt Cap</span><strong>{quote.marketCap > 0 ? formatMarketCap(quote.marketCap) : '—'}</strong></div>
+                      <div><span>Mkt Cap</span><strong>{quote.marketCap > 0 ? formatMarketCapForTicker(quote.marketCap, quote.symbol) : '—'}</strong></div>
                       <div><span>P/E</span><strong>{quote.peRatio > 0 ? quote.peRatio.toFixed(1) : '—'}</strong></div>
                       <div><span>Beta</span><strong>{quote.beta.toFixed(2)}</strong></div>
                     </div>
@@ -260,7 +260,7 @@ export default function Watchlist() {
                   <button onClick={() => navigate(`/analyzer?ticker=${selected.symbol}`)}><Eye size={16} /></button>
                 </div>
                 <div className="selected-price">
-                  <strong>{formatCurrency(selected.price)}</strong>
+                  <strong>{formatPrice(selected.price, selected.symbol)}</strong>
                   <em className={selected.changePercent >= 0 ? 'positive' : 'negative'}>
                     {selected.changePercent >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
                     {formatPercent(selected.changePercent)}
@@ -278,7 +278,7 @@ export default function Watchlist() {
               </div>
 
               <div className="watch-detail-grid">
-                <div><span>Market cap</span><strong>{selected.marketCap > 0 ? formatMarketCap(selected.marketCap) : '—'}</strong></div>
+                <div><span>Market cap</span><strong>{selected.marketCap > 0 ? formatMarketCapForTicker(selected.marketCap, selected.symbol) : '—'}</strong></div>
                 <div><span>Volume</span><strong>{formatVolume(selected.volume)}</strong></div>
                 <div><span>Beta</span><strong>{selected.beta.toFixed(2)}</strong></div>
                 <div><span>Dividend</span><strong>{selected.dividendYield.toFixed(2)}%</strong></div>
@@ -287,7 +287,7 @@ export default function Watchlist() {
               <div className="range-card">
                 <div>
                   <span>52-week range</span>
-                  <strong>{formatCurrency(selected.low52w)} — {formatCurrency(selected.high52w)}</strong>
+                  <strong>{formatPrice(selected.low52w, selected.symbol)} — {formatPrice(selected.high52w, selected.symbol)}</strong>
                 </div>
                 <div className="range-track">
                   <i style={{ width: `${Math.min(100, Math.max(0, selectedRangePos))}%` }} />
