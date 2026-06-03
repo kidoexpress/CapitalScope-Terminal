@@ -1,7 +1,7 @@
 import { usePortfolioStore } from '../store/portfolioStore';
 import CorrelationMatrix from '../components/charts/CorrelationMatrix';
 import { AIInsightPanel } from '../components/ui/AIInsightCard';
-import { SECTOR_COLORS } from '../data/mockStocks';
+import { SECTOR_COLORS, STOCK_DATABASE } from '../data/mockStocks';
 import { calcDiversificationScore, formatCurrency } from '../utils/finance';
 import Disclaimer from '../components/ui/Disclaimer';
 import type { AIInsight } from '../types';
@@ -25,7 +25,14 @@ export default function RiskDashboard() {
   holdings.forEach(h => { sectorMap[h.sector] = (sectorMap[h.sector] || 0) + h.weight; });
 
   const totalValue = holdings.reduce((s, h) => s + h.value, 0);
-  const estVol = 0.18; // estimated portfolio volatility
+  // Weighted portfolio volatility proxy using beta × market vol (15% annual)
+  const MARKET_VOL = 0.15;
+  const estVol = holdings.length > 0
+    ? holdings.reduce((sum, h) => {
+        const beta = (h as any).beta ?? STOCK_DATABASE[h.symbol]?.beta ?? 1.0;
+        return sum + (h.weight / 100) * beta * MARKET_VOL;
+      }, 0)
+    : MARKET_VOL;
 
   const diversScore = calcDiversificationScore(
     holdings.map(h => h.weight),

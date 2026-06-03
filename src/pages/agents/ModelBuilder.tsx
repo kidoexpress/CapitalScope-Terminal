@@ -151,8 +151,11 @@ export default function ModelBuilder() {
     exportModelToCSV(company, scenarios, entryPrice, investmentAmount);
   };
 
+  const totalProb = scenarios.reduce((sum, s) => sum + (s.probability || 0), 0);
   const probabilityWeightedPrice = scenarios.length
-    ? scenarios.reduce((sum, s) => sum + s.probability * s.impliedPrice, 0)
+    ? totalProb > 0
+      ? scenarios.reduce((sum, s) => sum + (s.probability / totalProb) * s.impliedPrice, 0)
+      : scenarios.reduce((sum, s) => sum + s.impliedPrice, 0) / scenarios.length
     : livePreview.impliedPrice;
   const expectedRoi = ((probabilityWeightedPrice - entryPrice) / entryPrice) * 100;
 

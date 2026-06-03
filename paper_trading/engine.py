@@ -115,14 +115,24 @@ class PaperTradingEngine:
 
         prices = get_historical_prices(tickers, start_date, end_date)
         prices = prices.rename(columns={col: str(col).replace(".", "-") for col in prices.columns})
-        weights = pd.Series(portfolio.get_portfolio_weights(), dtype="float64")
-        weights = weights[weights.index.isin(prices.columns)]
-        if weights.empty:
+        available_tickers = [t for t in tickers if t in prices.columns]
+        if not available_tickers:
             raise ValueError("No matching price columns found for current holdings.")
 
+        # Use prices at START of backtest period for historically accurate weights.
+        # This prevents look-ahead bias from applying today's prices to a 1-year backtest.
+        first_prices = prices[available_tickers].dropna(how="all").iloc[0]
+        start_values = {
+            t: portfolio.holdings[t]["shares"] * float(first_prices[t])
+            for t in available_tickers
+            if pd.notna(first_prices.get(t))
+        }
+        total_start_value = sum(start_values.values()) + portfolio.cash_balance
+        if total_start_value <= 0:
+            raise ValueError("Cannot compute weights — total start value is zero.")
+
+        weights = pd.Series({t: v / total_start_value for t, v in start_values.items()})
         asset_returns = prices[weights.index].pct_change().dropna(how="all").fillna(0)
-        # Portfolio return preserves cash drag: only invested weights contribute to daily returns.
-        # Any cash balance has 0% daily return, so weights intentionally do not sum to 1.
         portfolio_returns = asset_returns.mul(weights, axis=1).sum(axis=1)
         equity = (1 + portfolio_returns).cumprod() * portfolio.initial_cash
         benchmarks = get_benchmarks(start_date, end_date)
@@ -149,12 +159,19 @@ class PaperTradingEngine:
         benchmark_returns = result["benchmark_returns"]
 
         equity_curve = []
-        base_portfolio = float(equity.iloc[0]) if not equity.empty else 1.0
+        if equity.empty or equity.isna().all():
+            raise ValueError("Equity curve is empty — no price data for the given period.")
+        first_valid_values = equity.dropna()
+        if first_valid_values.empty or float(first_valid_values.iloc[0]) == 0:
+            raise ValueError("Equity curve base value is zero — cannot normalise.")
+        base_portfolio = float(first_valid_values.iloc[0])
         benchmark_curves = {
             label: (1 + returns).cumprod() * 100
             for label, returns in benchmark_returns.items()
         }
         for date, value in equity.items():
+            if pd.isna(value):
+                continue
             point = {
                 "date": pd.Timestamp(date).strftime("%Y-%m-%d"),
                 "portfolio_value": float(value / base_portfolio * 100),

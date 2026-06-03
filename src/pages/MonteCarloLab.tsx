@@ -261,7 +261,18 @@ export default function MonteCarloLab() {
                   formatter={(v) => [`${v}`, 'Paths']}
                   contentStyle={{ background: 'rgba(8,8,20,0.98)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 8, fontSize: 11, fontFamily: 'JetBrains Mono' }}
                 />
-                <ReferenceLine x={formatCurrency(params.initialValue).slice(0, -3)} stroke="rgba(99,102,241,0.4)" strokeDasharray="4 2" />
+                <ReferenceLine
+                  x={(() => {
+                    if (!histogram.length) return undefined;
+                    const target = params.initialValue;
+                    return histogram.reduce((prev, curr) =>
+                      Math.abs(curr.min - target) < Math.abs(prev.min - target) ? curr : prev
+                    ).range;
+                  })()}
+                  stroke="var(--accent)"
+                  strokeDasharray="4 3"
+                  label={{ value: 'Start', position: 'top', fontSize: 10 }}
+                />
                 <Bar dataKey="count" radius={[2, 2, 0, 0]}>
                   {histogram.map((entry, index) => (
                     <Cell key={index} fill={entry.value >= params.initialValue ? '#10b981' : '#ef4444'} fillOpacity={0.7} />

@@ -17,9 +17,12 @@ def get_benchmarks(start: str, end: str) -> dict[str, pd.Series]:
     prices = get_historical_prices(list(BENCHMARK_TICKERS.values()), start, end)
     returns: dict[str, pd.Series] = {}
     for label, ticker in BENCHMARK_TICKERS.items():
-      column = ticker.replace("-", ".") if ticker == "BRK-B" else ticker
-      if column in prices:
-          series = prices[column].pct_change().dropna()
-          if not series.empty:
-              returns[label] = series
+        # Try multiple column name formats — yfinance versions differ on BRK-B vs BRK.B
+        candidates = [ticker, ticker.replace("-", "."), ticker.replace(".", "-")]
+        column = next((c for c in candidates if c in prices.columns), None)
+        if column is None:
+            continue
+        series = prices[column].pct_change().dropna()
+        if not series.empty:
+            returns[label] = series
     return returns
