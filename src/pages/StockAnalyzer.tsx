@@ -15,6 +15,7 @@ import { getStockQuote, getStockHistory } from '../utils/api';
 import { DATA_SOURCE_LABEL } from '../services/marketDataService';
 import { calcAllMetrics, formatMarketCap, formatVolume, formatPercent, formatCurrency, formatPrice, formatMarketCapForTicker } from '../utils/finance';
 import { usePortfolioStore } from '../store/portfolioStore';
+import { MARKETS } from '../config/markets';
 
 // ─── Insight generation ───────────────────────────────────────
 
@@ -110,11 +111,17 @@ function InsightCard({ insight }: { insight: AIInsight }) {
 
 // ─── Main page ────────────────────────────────────────────────
 
-const DEFAULT_SYMBOL = 'AAPL';
-
 export default function StockAnalyzer() {
   const [searchParams] = useSearchParams();
   const paramTicker = searchParams.get('ticker');
+  const { addToWatchlist, watchlist, activeMarketId } = usePortfolioStore();
+  const activeMarket = MARKETS.find(m => m.id === activeMarketId) ?? MARKETS[0];
+  const DEFAULT_SYMBOL = activeMarketId === 'BR' ? 'PETR4.SA'
+    : activeMarketId === 'UK' ? 'HSBA.L'
+    : activeMarketId === 'DE' ? 'SAP.DE'
+    : activeMarketId === 'JP' ? '7203.T'
+    : activeMarketId === 'HK' ? '0700.HK'
+    : 'AAPL';
   const [symbol, setSymbol] = useState(paramTicker ?? DEFAULT_SYMBOL);
   const [quote, setQuote] = useState<StockQuote | null>(null);
   const [loading, setLoading] = useState(true);
@@ -125,7 +132,6 @@ export default function StockAnalyzer() {
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const prevSymbol = useRef(symbol);
-  const { addToWatchlist, watchlist } = usePortfolioStore();
   const inWatchlist = watchlist.includes(symbol);
 
   // Sync URL param changes

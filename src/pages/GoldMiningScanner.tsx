@@ -7,6 +7,8 @@ import { useState } from 'react';
 import { Zap, Filter, Shield, TrendingUp, Target, ScanSearch } from 'lucide-react';
 import { runScanner } from '../services/researchService';
 import type { ScannerResult, ScannerFilters } from '../services/researchService';
+import { usePortfolioStore } from '../store/portfolioStore';
+import { MARKETS } from '../config/markets';
 
 // ─── Constants ────────────────────────────────────────────────
 
@@ -229,6 +231,9 @@ function SliderFilter({
 // ─── Main page ────────────────────────────────────────────────
 
 export default function GoldMiningScanner() {
+  const { activeMarketId } = usePortfolioStore();
+  const activeMarket = MARKETS.find(m => m.id === activeMarketId) ?? MARKETS[0];
+
   const [filters, setFilters] = useState<ScannerFilters>(DEFAULT_FILTERS);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<ScannerResult[]>([]);
@@ -238,7 +243,7 @@ export default function GoldMiningScanner() {
     setLoading(true);
     setHasRun(true);
     try {
-      const res = await runScanner(filters);
+      const res = await runScanner({ ...filters, marketSuffix: activeMarket.suffix });
       setResults(res);
     } finally {
       setLoading(false);
@@ -277,6 +282,12 @@ export default function GoldMiningScanner() {
         <p style={{ fontSize: 13, color: 'var(--text-lo)' }}>
           Discover high-potential stocks filtered by growth quality, margins, and valuation efficiency
         </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+          <span style={{ fontSize: 16 }}>{activeMarket.flag}</span>
+          <span style={{ fontSize: 11, color: 'var(--text-lo)', fontFamily: 'JetBrains Mono, monospace' }}>
+            Scanning {activeMarket.name} · {activeMarket.currencySymbol}
+          </span>
+        </div>
       </div>
 
       {/* ── Filter card ── */}

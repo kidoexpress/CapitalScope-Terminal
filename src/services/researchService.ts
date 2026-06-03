@@ -70,6 +70,7 @@ export interface ScannerFilters {
   minGrossMargin: number;
   marketCapTier: 'small' | 'mid' | 'large' | 'any';
   riskLevel: 'low' | 'medium' | 'high' | 'any';
+  marketSuffix?: string;  // '' = US only, '.SA' = Brazil only, undefined = all markets
 }
 
 export interface ScannerResult {
@@ -499,6 +500,13 @@ export async function runScanner(
     .filter(t => {
       const d = enrichedDB[t];
       if (!d) return false;
+      // Filter by market suffix when specified
+      if (filters.marketSuffix !== undefined) {
+        const tickerSuffix = t.includes('.') ? '.' + t.split('.').pop() : '';
+        const expected = filters.marketSuffix;
+        if (expected === '' && tickerSuffix !== '') return false;
+        if (expected !== '' && tickerSuffix !== expected) return false;
+      }
       if (filters.sectors.length > 0 && !filters.sectors.some(s => d.sector.includes(s))) return false;
       if (d.yoyGrowth < filters.minRevenueGrowth) return false;
       if (d.psTTM > filters.maxPS) return false;
