@@ -1,201 +1,262 @@
-import { usePortfolioStore } from '../store/portfolioStore';
+import { useEffect, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Activity, ArrowRight, BarChart2, CircleHelp, Gauge, Layers3, Shield, TrendingDown } from 'lucide-react';
 import CorrelationMatrix from '../components/charts/CorrelationMatrix';
-import { AIInsightPanel } from '../components/ui/AIInsightCard';
 import { SECTOR_COLORS, STOCK_DATABASE } from '../data/mockStocks';
+import { usePortfolioStore } from '../store/portfolioStore';
 import { calcDiversificationScore, formatCurrency } from '../utils/finance';
-import Disclaimer from '../components/ui/Disclaimer';
-import type { AIInsight } from '../types';
-import { AlertTriangle, Activity, BarChart2, Shield } from 'lucide-react';
+import { DATA_SOURCE_LABEL, getQuote } from '../services/marketDataService';
 
-const VaR_CONFIDENCE = [0.90, 0.95, 0.99];
+const VAR_CONFIDENCE = [
+  { label: '90% confidence', confidence: 0.90, z: 1.28, plain: 'One in ten trading days could exceed this move.' },
+  { label: '95% confidence', confidence: 0.95, z: 1.645, plain: 'One in twenty trading days could exceed this move.' },
+  { label: '99% confidence', confidence: 0.99, z: 2.326, plain: 'A rare stress day could exceed this estimate.' },
+];
 
-function calcVaR(portfolioValue: number, volatility: number, confidence: number): number {
-  // Normal approximation: VaR = V * σ * z * √t (1-day)
-  const z = confidence === 0.90 ? 1.28 : confidence === 0.95 ? 1.645 : 2.326;
+function calcVaR(portfolioValue: number, volatility: number, z: number): number {
   return portfolioValue * volatility * z * Math.sqrt(1 / 252);
 }
 
+function riskTone(score: number) {
+  if (score >= 72) return 'Calm';
+  if (score >= 50) return 'Balanced';
+  if (score >= 30) return 'Elevated';
+  return 'Fragile';
+}
+
+function RiskMetricCard({
+  icon,
+  label,
+  value,
+  detail,
+  tone = 'neutral',
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  detail: string;
+  tone?: 'neutral' | 'good' | 'warn' | 'bad';
+}) {
+  return (
+    <div className={`risk-metric-card ${tone}`}>
+      <div className="risk-card-icon">{icon}</div>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <p>{detail}</p>
+    </div>
+  );
+}
+
 export default function RiskDashboard() {
+  const navigate = useNavigate();
   const { holdings } = usePortfolioStore();
-  const symbols = holdings.map(h => h.symbol);
-  const prices = Object.fromEntries(holdings.map(h => [h.symbol, h.currentPrice]));
+  const holdingSymbols = holdings.map(h => h.symbol).join(',');
+  const totalValue = holdings.reduce((sum, h) => sum + h.value, 0);
+  const hasHoldings = holdings.length > 0;
+  const hasCorrelationData = holdings.length >= 2;
 
-  // Sector breakdown
-  const sectorMap: Record<string, number> = {};
-  holdings.forEach(h => { sectorMap[h.sector] = (sectorMap[h.sector] || 0) + h.weight; });
+  useEffect(() => {
+    if (!holdings.length) return;
+    let cancelled = false;
+    void Promise.all(holdings.map(async holding => {
+      const quote = await getQuote(holding.symbol);
+      if (!cancelled && quote) {
+        usePortfolioStore.getState().updateHoldingPrice(holding.symbol, quote.price);
+      }
+    }));
+    return () => { cancelled = true; };
+  }, [holdingSymbols]);
 
-  const totalValue = holdings.reduce((s, h) => s + h.value, 0);
-  // Weighted portfolio volatility proxy using beta × market vol (15% annual)
+  const sectorMap = holdings.reduce<Record<string, number>>((map, holding) => {
+    map[holding.sector] = (map[holding.sector] || 0) + holding.weight;
+    return map;
+  }, {});
+
+  const topSectors = Object.entries(sectorMap).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const maxConcentration = holdings.reduce((max, h) => Math.max(max, h.weight), 0);
+  const topHolding = [...holdings].sort((a, b) => b.weight - a.weight)[0];
+  const topSector = topSectors[0];
+  const hhi = holdings.reduce((sum, h) => sum + h.weight * h.weight, 0);
+  // FIX: estimate portfolio volatility from beta-weighted holdings.
+  // Using beta × market vol (15% annual) as a proxy — much better than a fixed constant.
   const MARKET_VOL = 0.15;
   const estVol = holdings.length > 0
-    ? holdings.reduce((sum, h) => {
-        const beta = (h as any).beta ?? STOCK_DATABASE[h.symbol]?.beta ?? 1.0;
-        return sum + (h.weight / 100) * beta * MARKET_VOL;
-      }, 0)
+    ? Math.max(
+        0.05,
+        holdings.reduce((sum, h) => {
+          const beta = STOCK_DATABASE[h.symbol]?.beta ?? 1.0;
+          return sum + h.weight * beta * MARKET_VOL;
+        }, 0)
+      )
     : MARKET_VOL;
-
   const diversScore = calcDiversificationScore(
     holdings.map(h => h.weight),
     holdings.map(() => holdings.map(() => 0.5)),
     holdings.map(h => h.sector)
   );
-
-  // Concentration risk
-  const maxConcentration = holdings.reduce((max, h) => Math.max(max, h.weight), 0);
-  const topSector = Object.entries(sectorMap).sort((a, b) => b[1] - a[1])[0];
-  const hhi = holdings.reduce((s, h) => s + h.weight * h.weight, 0);
-
-  const insights: AIInsight[] = [
-    ...(maxConcentration > 0.35 ? [{
-      type: 'warning' as const,
-      title: 'Single Stock Concentration',
-      body: `Top holding represents ${(maxConcentration * 100).toFixed(0)}% of portfolio. Modern Portfolio Theory suggests max single-stock weight of 20-25% for optimal risk-adjusted returns.`,
-      metric: `${(maxConcentration * 100).toFixed(0)}%`,
-    }] : []),
-    ...(topSector && topSector[1] > 0.5 ? [{
-      type: 'risk' as const,
-      title: `${topSector[0]} Sector Overweight`,
-      body: `${topSector[0]} accounts for ${(topSector[1] * 100).toFixed(0)}% of your portfolio. A sector-specific event (regulation, competition, cycle) could trigger significant drawdown.`,
-      metric: `${(topSector[1] * 100).toFixed(0)}%`,
-    }] : []),
-    {
-      type: 'info' as const,
-      title: 'Portfolio Volatility Estimate',
-      body: `Estimated annualized portfolio volatility of ~${(estVol * 100).toFixed(0)}%. This means ~68% of the time, annual returns will be within ±${(estVol * 100).toFixed(0)}% of the expected return.`,
-      metric: `${(estVol * 100).toFixed(0)}%`,
-    },
-    {
-      type: diversScore > 60 ? 'opportunity' as const : 'warning' as const,
-      title: diversScore > 60 ? 'Good Portfolio Diversification' : 'Consider Diversification',
-      body: diversScore > 60
-        ? `Your portfolio diversification score of ${diversScore}/100 shows healthy spread across sectors and positions.`
-        : `Diversification score of ${diversScore}/100 suggests room to improve. Adding uncorrelated assets can reduce overall portfolio volatility without sacrificing returns (diversification "free lunch").`,
-      metric: `${diversScore}/100`,
-    },
-  ];
+  const estimatedDrawdown = hasHoldings ? -Math.min(65, Math.max(8, estVol * 100 * 1.8 + maxConcentration * 22)) : 0;
+  const riskScore = hasHoldings
+    ? Math.max(0, Math.min(100, Math.round(diversScore - hhi * 18 - Math.max(0, maxConcentration - 0.25) * 65)))
+    : 0;
+  const tone = riskTone(riskScore);
+  const symbols = holdings.map(h => h.symbol);
+  const prices = Object.fromEntries(holdings.map(h => [h.symbol, h.currentPrice]));
+  const oneDayVaR95 = hasHoldings ? calcVaR(totalValue, estVol, 1.645) : 0;
 
   return (
-    <div className="flex flex-col gap-4 animate-fade-in-up">
-      {/* Risk metrics row */}
-      <div className="grid grid-cols-4 gap-3">
-        <div className="glass-panel p-4 rounded-xl">
-          <div className="text-[9px] uppercase tracking-wider font-semibold mb-2" style={{ color: '#475569' }}>DIVERSIFICATION</div>
-          <div className="text-2xl font-mono font-bold" style={{ color: diversScore > 60 ? '#10b981' : diversScore > 40 ? '#f59e0b' : '#ef4444' }}>
-            {diversScore}<span className="text-sm" style={{ color: '#334155' }}>/100</span>
-          </div>
-          <div className="h-1 rounded-full mt-2" style={{ background: 'rgba(99,102,241,0.1)' }}>
-            <div style={{ width: `${diversScore}%`, height: '100%', borderRadius: 999, background: diversScore > 60 ? '#10b981' : diversScore > 40 ? '#f59e0b' : '#ef4444' }} />
-          </div>
+    <div className="risk-intelligence-page animate-fade-in-up">
+      <section className="risk-hero">
+        <div>
+          <span className="section-kicker">Risk Management</span>
+          <h1>Risk Intelligence</h1>
+          <p>Understand concentration, volatility, drawdown, and exposure before they hurt returns.</p>
         </div>
-        <div className="glass-panel p-4 rounded-xl">
-          <div className="text-[9px] uppercase tracking-wider font-semibold mb-2" style={{ color: '#475569' }}>HHI CONCENTRATION</div>
-          <div className="text-2xl font-mono font-bold" style={{ color: hhi > 0.25 ? '#ef4444' : hhi > 0.15 ? '#f59e0b' : '#10b981' }}>
-            {(hhi * 100).toFixed(1)}<span className="text-sm" style={{ color: '#334155' }}>%²</span>
-          </div>
-          <div className="text-[9px] mt-1" style={{ color: '#475569' }}>
-            {hhi > 0.25 ? 'High Concentration' : hhi > 0.15 ? 'Moderate' : 'Well Spread'}
-          </div>
+        <div className="risk-source-pill">
+          <span className="pulse-live" />
+          {DATA_SOURCE_LABEL}
         </div>
-        <div className="glass-panel p-4 rounded-xl">
-          <div className="text-[9px] uppercase tracking-wider font-semibold mb-2" style={{ color: '#475569' }}>VaR (95%, 1-Day)</div>
-          <div className="text-2xl font-mono font-bold" style={{ color: '#ef4444' }}>
-            -{formatCurrency(calcVaR(totalValue, estVol, 0.95))}
-          </div>
-          <div className="text-[9px] mt-1" style={{ color: '#475569' }}>5% chance of exceeding</div>
-        </div>
-        <div className="glass-panel p-4 rounded-xl">
-          <div className="text-[9px] uppercase tracking-wider font-semibold mb-2" style={{ color: '#475569' }}>VaR (99%, 1-Day)</div>
-          <div className="text-2xl font-mono font-bold" style={{ color: '#f59e0b' }}>
-            -{formatCurrency(calcVaR(totalValue, estVol, 0.99))}
-          </div>
-          <div className="text-[9px] mt-1" style={{ color: '#475569' }}>1% chance of exceeding</div>
-        </div>
-      </div>
+      </section>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-2 flex flex-col gap-3">
-          {/* Correlation matrix */}
-          <div className="glass-panel p-4 rounded-xl">
-            <div className="flex items-center gap-2 mb-3">
-              <Activity size={13} style={{ color: '#8b5cf6' }} />
-              <h3 className="text-xs font-semibold" style={{ color: '#94a3b8' }}>CORRELATION MATRIX (1Y daily returns)</h3>
+      {!hasCorrelationData && (
+        <section className="risk-empty-callout">
+          <div className="risk-empty-icon"><Layers3 size={22} /></div>
+          <div>
+            <strong>Add at least 2 holdings to calculate correlation and portfolio risk.</strong>
+            <span>CapitalScope can still show basic exposure, but institutional portfolio risk needs multiple positions.</span>
+          </div>
+          <button onClick={() => navigate('/portfolio')}>
+            Open Portfolio Builder <ArrowRight size={15} />
+          </button>
+        </section>
+      )}
+
+      <section className="risk-metric-grid">
+        <RiskMetricCard
+          icon={<Gauge size={18} />}
+          label="Portfolio Risk Score"
+          value={hasHoldings ? `${riskScore}/100` : '—'}
+          detail={hasHoldings ? `${tone} risk tone based on concentration and diversification.` : 'Add holdings to activate scoring.'}
+          tone={riskScore >= 65 ? 'good' : riskScore >= 42 ? 'warn' : hasHoldings ? 'bad' : 'neutral'}
+        />
+        <RiskMetricCard
+          icon={<Layers3 size={18} />}
+          label="Diversification"
+          value={hasHoldings ? `${diversScore}/100` : '—'}
+          detail={hasHoldings ? `${Object.keys(sectorMap).length} sectors represented.` : 'No portfolio allocation yet.'}
+          tone={diversScore >= 65 ? 'good' : diversScore >= 40 ? 'warn' : hasHoldings ? 'bad' : 'neutral'}
+        />
+        <RiskMetricCard
+          icon={<TrendingDown size={18} />}
+          label="Max Drawdown"
+          value={hasHoldings ? `${estimatedDrawdown.toFixed(1)}%` : '—'}
+          detail="Estimated stress drawdown from volatility and concentration."
+          tone={estimatedDrawdown > -18 ? 'good' : estimatedDrawdown > -32 ? 'warn' : 'bad'}
+        />
+        <RiskMetricCard
+          icon={<Shield size={18} />}
+          label="Value at Risk"
+          value={hasHoldings ? `-${formatCurrency(oneDayVaR95, 0)}` : '—'}
+          detail="95% one-day VaR using a normal approximation."
+          tone={hasHoldings ? 'warn' : 'neutral'}
+        />
+      </section>
+
+      <section className="risk-content-grid">
+        <div className="risk-main-stack">
+          <div className="risk-panel">
+            <div className="risk-panel-header">
+              <div>
+                <span className="section-kicker">Correlation</span>
+                <h2>Cross-Holding Sensitivity</h2>
+              </div>
+              <CircleHelp size={16} aria-label="Correlation estimates how similarly holdings move." />
             </div>
-            {symbols.length >= 2 ? (
-              <CorrelationMatrix symbols={symbols} prices={prices} />
+            {hasCorrelationData ? (
+              <div className="risk-correlation-wrap">
+                <CorrelationMatrix symbols={symbols} prices={prices} />
+              </div>
             ) : (
-              <div className="flex items-center justify-center h-32 text-xs" style={{ color: '#334155' }}>
-                Add at least 2 holdings to see correlations
+              <div className="risk-placeholder-card">
+                <Activity size={20} />
+                <strong>Correlation needs more positions.</strong>
+                <span>Add a second holding to reveal relationship risk across your portfolio.</span>
               </div>
             )}
           </div>
 
-          {/* Sector breakdown */}
-          <div className="glass-panel p-4 rounded-xl">
-            <div className="flex items-center gap-2 mb-3">
-              <BarChart2 size={13} style={{ color: '#3b82f6' }} />
-              <h3 className="text-xs font-semibold" style={{ color: '#94a3b8' }}>SECTOR EXPOSURE</h3>
+          <div className="risk-panel">
+            <div className="risk-panel-header">
+              <div>
+                <span className="section-kicker">Exposure</span>
+                <h2>Sector Concentration</h2>
+              </div>
+              <BarChart2 size={17} />
             </div>
-            <div className="flex flex-col gap-2">
-              {Object.entries(sectorMap)
-                .sort((a, b) => b[1] - a[1])
-                .map(([sector, weight]) => (
-                  <div key={sector} className="flex items-center gap-3">
-                    <div className="w-20 text-[10px] font-mono text-right shrink-0" style={{ color: '#64748b' }}>{sector}</div>
-                    <div className="flex-1 h-2 rounded-full" style={{ background: 'rgba(99,102,241,0.08)' }}>
-                      <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{ width: `${weight * 100}%`, background: SECTOR_COLORS[sector] || '#6366f1' }}
-                      />
+            {topSectors.length ? (
+              <div className="sector-exposure-list">
+                {topSectors.map(([sector, weight]) => (
+                  <div className="sector-exposure-row" key={sector}>
+                    <div>
+                      <span>{sector}</span>
+                      <strong>{(weight * 100).toFixed(0)}%</strong>
                     </div>
-                    <div className="w-10 text-[10px] font-mono font-semibold shrink-0" style={{ color: SECTOR_COLORS[sector] || '#94a3b8' }}>
-                      {(weight * 100).toFixed(0)}%
+                    <div className="sector-track">
+                      <i style={{ width: `${Math.min(100, weight * 100)}%`, background: SECTOR_COLORS[sector] || 'var(--accent)' }} />
                     </div>
-                    {weight > 0.4 && <AlertTriangle size={10} style={{ color: '#f59e0b' }} />}
                   </div>
                 ))}
-            </div>
+              </div>
+            ) : (
+              <div className="risk-placeholder-card compact">
+                <strong>No sector exposure yet.</strong>
+                <span>Add holdings to see the top sector risks.</span>
+              </div>
+            )}
           </div>
 
-          {/* VaR table */}
-          <div className="glass-panel p-4 rounded-xl">
-            <div className="flex items-center gap-2 mb-3">
-              <Shield size={13} style={{ color: '#ef4444' }} />
-              <h3 className="text-xs font-semibold" style={{ color: '#94a3b8' }}>VALUE AT RISK — CONFIDENCE LEVELS</h3>
-            </div>
-            <table className="w-full">
-              <thead>
-                <tr style={{ borderBottom: '1px solid rgba(99,102,241,0.08)' }}>
-                  {['Confidence', '1-Day VaR', '1-Week VaR', '1-Month VaR', 'Interpretation'].map(h => (
-                    <th key={h} className="pb-2 text-left text-[9px] font-semibold uppercase tracking-wider pr-4" style={{ color: '#334155' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {VaR_CONFIDENCE.map(conf => {
-                  const daily = calcVaR(totalValue, estVol, conf);
-                  return (
-                    <tr key={conf} className="text-xs font-mono" style={{ borderBottom: '1px solid rgba(99,102,241,0.04)' }}>
-                      <td className="py-2 pr-4" style={{ color: '#94a3b8' }}>{(conf * 100).toFixed(0)}%</td>
-                      <td className="py-2 pr-4" style={{ color: '#ef4444' }}>-{formatCurrency(daily)}</td>
-                      <td className="py-2 pr-4" style={{ color: '#f59e0b' }}>-{formatCurrency(daily * Math.sqrt(5))}</td>
-                      <td className="py-2 pr-4" style={{ color: '#f97316' }}>-{formatCurrency(daily * Math.sqrt(21))}</td>
-                      <td className="py-2 text-[10px]" style={{ color: '#475569' }}>
-                        {conf === 0.90 ? '10% chance/day' : conf === 0.95 ? '5% chance/day' : '1% chance/day'}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="var-card-row">
+            {VAR_CONFIDENCE.map(item => {
+              const daily = hasHoldings ? calcVaR(totalValue, estVol, item.z) : 0;
+              return (
+                <div className="var-confidence-card" key={item.confidence}>
+                  <span>{item.label}</span>
+                  <strong>{hasHoldings ? `-${formatCurrency(daily, 0)}` : '—'}</strong>
+                  <div>
+                    <em>1-week: {hasHoldings ? `-${formatCurrency(daily * Math.sqrt(5), 0)}` : '—'}</em>
+                    <p>{item.plain}</p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* Right panel */}
-        <div className="flex flex-col gap-3">
-          <AIInsightPanel insights={insights} title="Risk Analysis" />
-          <Disclaimer />
-        </div>
-      </div>
+        <aside className="risk-memo-card">
+          <span className="section-kicker">AI Risk Analysis</span>
+          <h2>Executive Risk Memo</h2>
+          <div className="memo-tone">
+            <span>Overall risk tone</span>
+            <strong>{hasHoldings ? tone : 'Not enough data'}</strong>
+          </div>
+          <div className="memo-section">
+            <span>Biggest risk</span>
+            <p>{topHolding ? `${topHolding.symbol} is the largest single position at ${(topHolding.weight * 100).toFixed(0)}% of portfolio value.` : 'No holdings have been added yet.'}</p>
+          </div>
+          <div className="memo-section">
+            <span>Diversification note</span>
+            <p>{hasCorrelationData ? `The portfolio spans ${Object.keys(sectorMap).length} sectors with a diversification score of ${diversScore}/100.` : 'Correlation and diversification quality need at least two holdings.'}</p>
+          </div>
+          <div className="memo-section">
+            <span>Concentration warning</span>
+            <p>{topSector ? `${topSector[0]} is the largest sector exposure at ${(topSector[1] * 100).toFixed(0)}%. Monitor sector-specific shocks and earnings correlation.` : 'Sector concentration will appear after holdings are added.'}</p>
+          </div>
+          <div className="memo-section">
+            <span>What to monitor next</span>
+            <p>Track position weights, sector overlap, portfolio volatility, and whether new additions actually reduce correlated downside.</p>
+          </div>
+          <div className="risk-disclaimer">Educational analysis only. Not financial advice.</div>
+        </aside>
+      </section>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import {
   Activity,
   ArrowDownRight,
@@ -19,9 +19,9 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import { SCENARIOS, applyScenario, calcPortfolioScenarioImpact } from '../utils/scenarios';
 import { usePortfolioStore, getTotalValue } from '../store/portfolioStore';
 import { formatCurrency, formatPercent } from '../utils/finance';
-import { STOCK_DATABASE } from '../data/mockStocks';
 import Disclaimer from '../components/ui/Disclaimer';
 import { FinanceImpactCard } from '../components/ui/animated-dashboard-card';
+import { DATA_SOURCE_LABEL, getQuote } from '../services/marketDataService';
 
 const SCENARIO_ICONS: Record<string, LucideIcon> = {
   rates_rise: TrendingUp,
@@ -75,19 +75,32 @@ function ImpactTooltip({ active, payload, label }: any) {
 export default function ScenarioSimulator() {
   const { holdings } = usePortfolioStore();
   const [selectedScenario, setSelectedScenario] = useState(SCENARIOS[0].id);
+  const holdingSymbols = holdings.map(h => h.symbol).join(',');
   const totalValue = getTotalValue(holdings);
   const scenario = SCENARIOS.find(s => s.id === selectedScenario) ?? SCENARIOS[0];
   const ScenarioIcon = SCENARIO_ICONS[scenario.id] ?? Zap;
   const severity = SEVERITY_COPY[scenario.severity];
 
+  useEffect(() => {
+    if (!holdings.length) return;
+    let cancelled = false;
+    void Promise.all(holdings.map(async holding => {
+      const quote = await getQuote(holding.symbol);
+      if (!cancelled && quote) {
+        usePortfolioStore.getState().updateHoldingPrice(holding.symbol, quote.price);
+      }
+    }));
+    return () => { cancelled = true; };
+  }, [holdingSymbols]);
+
   const quotes = useMemo(() => Object.fromEntries(
     holdings.map(holding => [
       holding.symbol,
       {
-        ...STOCK_DATABASE[holding.symbol],
         price: holding.currentPrice,
         name: holding.name,
         sector: holding.sector,
+        beta: 1,
       } as any,
     ])
   ), [holdings]);
@@ -106,8 +119,10 @@ export default function ScenarioSimulator() {
   );
 
   const portfolioImpactValue = totalValue * portfolioImpact / 100;
-  const confidenceLow = portfolioImpact * 1.25;
-  const confidenceHigh = portfolioImpact * 0.72;
+  // FIX: confidenceLow = optimistic end (less impact), confidenceHigh = pessimistic end (more impact).
+  // e.g. for -10% impact: low = -7.2% (mild), high = -12.5% (severe).
+  const confidenceLow  = portfolioImpact * 0.72;
+  const confidenceHigh = portfolioImpact * 1.25;
   const impactPath = useMemo(() => buildImpactPath(portfolioImpact), [portfolioImpact]);
 
   const sectorImpacts = useMemo(() => Object.entries(scenario.impacts)
@@ -137,7 +152,7 @@ export default function ScenarioSimulator() {
           <p>Macro Risk</p>
           <h1>Scenario Simulator</h1>
         </div>
-        <span>Stress-test portfolio exposure through clean macro narratives, confidence ranges, and sector sensitivity.</span>
+        <span>Stress-test portfolio exposure through clean macro narratives, confidence ranges, and sector sensitivity. {DATA_SOURCE_LABEL} for current holding prices.</span>
       </div>
 
       <section className="scenario-selector-row" aria-label="Scenario selector">

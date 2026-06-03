@@ -1,9 +1,10 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Calculator, Download, FileSpreadsheet, Info, RotateCcw, Search } from 'lucide-react';
 import { runModelBuilder, type ModelBuilderParams, type ModelScenario } from '../../services/claudeService';
 import { AgentSkeleton, StreamingText } from '../../components/agents/StreamingText';
 import { exportModelToCSV, exportModelToExcel } from '../../utils/excelExport';
 import { COMPANY_FUNDAMENTALS } from '../../data/financialData';
+import { DATA_SOURCE_LABEL, getQuote } from '../../services/marketDataService';
 
 const SUPPORTED_TICKERS = Object.keys(COMPANY_FUNDAMENTALS);
 
@@ -52,7 +53,7 @@ function AssumptionSlider({
 }
 
 function ScenarioPreview({ scenario, entryPrice, investmentAmount }: { scenario: ModelScenario; entryPrice: number; investmentAmount: number }) {
-  const shares = investmentAmount / entryPrice;
+  const shares = entryPrice > 0 ? investmentAmount / entryPrice : 0;
   const terminalValue = shares * scenario.impliedPrice;
   const roi = ((terminalValue - investmentAmount) / investmentAmount) * 100;
   const tone = scenario.label.toLowerCase();
@@ -72,7 +73,8 @@ function ScenarioPreview({ scenario, entryPrice, investmentAmount }: { scenario:
 export default function ModelBuilder() {
   const [ticker, setTicker] = useState('AAPL');
   const [investmentAmount, setInvestmentAmount] = useState(100000);
-  const [entryPrice, setEntryPrice] = useState(185);
+  const [entryPrice, setEntryPrice] = useState(0);
+  const [quoteUpdated, setQuoteUpdated] = useState<string | null>(null);
   const [timeHorizon, setTimeHorizon] = useState(5);
   const [assumptions, setAssumptions] = useState<Assumptions>(DEFAULT_ASSUMPTIONS);
   const [narrative, setNarrative] = useState('');
@@ -84,16 +86,35 @@ export default function ModelBuilder() {
   const outputRef = useRef<HTMLDivElement>(null);
 
   const company = COMPANY_FUNDAMENTALS[ticker];
-  const shares = investmentAmount / entryPrice;
+  const shares = entryPrice > 0 ? investmentAmount / entryPrice : 0;
   const latestIncome = company?.incomeStatements?.[0];
   const latestCash = company?.cashFlows?.[0];
 
+  useEffect(() => {
+    let cancelled = false;
+    void getQuote(ticker).then(quote => {
+      if (cancelled || !quote) return;
+      setEntryPrice(Number(quote.price.toFixed(2)));
+      setQuoteUpdated(new Date(quote.lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    });
+    return () => { cancelled = true; };
+  }, [ticker]);
+
   const livePreview = useMemo(() => {
+    if (entryPrice <= 0) {
+      const revenue = latestIncome?.revenue ?? 100000;
+      const yearRevenue = revenue * Math.pow(1 + assumptions.revenueGrowth / 100, timeHorizon);
+      const ebitda = yearRevenue * assumptions.ebitdaMargin / 100;
+      return { yearRevenue, ebitda, impliedPrice: 0, expectedRoi: 0 };
+    }
     const revenue = latestIncome?.revenue ?? 100000;
     const yearRevenue = revenue * Math.pow(1 + assumptions.revenueGrowth / 100, timeHorizon);
     const ebitda = yearRevenue * assumptions.ebitdaMargin / 100;
-    const baseEnterpriseValue = ebitda * assumptions.exitMultiple;
-    const impliedPrice = entryPrice * (baseEnterpriseValue / Math.max(revenue * 10, 1));
+    // FIX: implied price = entry × growth factor × margin-multiple ratio.
+    // Removes the fabricated "revenue * 10" normalizer that produced nonsensical prices.
+    const growthFactor = Math.pow(1 + assumptions.revenueGrowth / 100, timeHorizon);
+    const marginRatio = assumptions.ebitdaMargin / 100;
+    const impliedPrice = entryPrice * growthFactor * (1 + marginRatio * (assumptions.exitMultiple / 20));
     const expectedRoi = ((impliedPrice - entryPrice) / entryPrice) * 100;
     return { yearRevenue, ebitda, impliedPrice, expectedRoi };
   }, [latestIncome?.revenue, assumptions, timeHorizon, entryPrice]);
@@ -157,7 +178,7 @@ export default function ModelBuilder() {
       ? scenarios.reduce((sum, s) => sum + (s.probability / totalProb) * s.impliedPrice, 0)
       : scenarios.reduce((sum, s) => sum + s.impliedPrice, 0) / scenarios.length
     : livePreview.impliedPrice;
-  const expectedRoi = ((probabilityWeightedPrice - entryPrice) / entryPrice) * 100;
+  const expectedRoi = entryPrice > 0 ? ((probabilityWeightedPrice - entryPrice) / entryPrice) * 100 : 0;
 
   return (
     <div className="workflow-page animate-fade-in-up">
@@ -166,7 +187,7 @@ export default function ModelBuilder() {
           <p>Financial Model</p>
           <h1>Model Builder</h1>
         </div>
-        <span>Build a compact valuation model with bear, base, and bull cases plus Excel-compatible exports.</span>
+        <span>Build a compact valuation model with bear, base, and bull cases plus Excel-compatible exports. {DATA_SOURCE_LABEL} for current entry price.</span>
       </div>
 
       <div className="model-workflow-grid">
@@ -186,6 +207,7 @@ export default function ModelBuilder() {
           <div className="model-company-card">
             <strong>{ticker}</strong>
             <span>{company?.name} · {company?.sector}</span>
+            <span>{DATA_SOURCE_LABEL}{quoteUpdated ? ` · Last updated ${quoteUpdated}` : ''}</span>
             <p>{company?.description}</p>
           </div>
           <label className="model-field">
@@ -264,9 +286,9 @@ export default function ModelBuilder() {
             </div>
           )}
 
-          <button onClick={done ? reset : handleRun} disabled={isRunning} className="workflow-primary-action">
+          <button onClick={done ? reset : handleRun} disabled={isRunning || entryPrice <= 0} className="workflow-primary-action">
             {isRunning ? <span className="button-spinner" /> : done ? <RotateCcw size={16} /> : <Search size={16} />}
-            {isRunning ? 'Building model...' : done ? 'Rebuild Model' : 'Build Financial Model'}
+            {isRunning ? 'Building model...' : done ? 'Rebuild Model' : entryPrice <= 0 ? 'Waiting for Yahoo quote' : 'Build Financial Model'}
           </button>
 
           <div className="export-row">
