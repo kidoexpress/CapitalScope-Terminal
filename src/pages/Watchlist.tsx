@@ -15,8 +15,8 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { usePortfolioStore } from '../store/portfolioStore';
-import { getStockQuote, simulateLivePrice } from '../utils/api';
-import { generateSparkline } from '../data/mockStocks';
+import { getStockQuote } from '../utils/api';
+import { DATA_SOURCE_LABEL, getSparkline } from '../services/marketDataService';
 import { formatCurrency, formatMarketCap, formatPercent, formatVolume } from '../utils/finance';
 import StockSearch from '../components/ui/StockSearch';
 import Sparkline from '../components/charts/Sparkline';
@@ -53,19 +53,27 @@ export default function Watchlist() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedSymbol, setSelectedSymbol] = useState<string>(watchlist[0] ?? 'AAPL');
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const loadQuotes = async (syms: string[]) => {
+    setError(null);
     const results: Record<string, WatchlistQuote> = {};
     await Promise.all(syms.map(async sym => {
       const quote = await getStockQuote(sym);
       if (quote) {
+        const sparkline = await getSparkline(sym, '1M').catch(() => []);
         results[sym] = {
           ...quote,
-          sparkline: generateSparkline(sym, quote.price),
+          sparkline: sparkline.length ? sparkline : [quote.price],
         };
       }
     }));
     setQuotes(results);
+    setLastUpdated(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    if (Object.keys(results).length === 0 && syms.length > 0) {
+      setError('Market data unavailable from Yahoo Finance.');
+    }
     setLoading(false);
     setRefreshing(false);
     if (!selectedSymbol || !results[selectedSymbol]) {
@@ -73,29 +81,9 @@ export default function Watchlist() {
     }
   };
 
-  useEffect(() => { loadQuotes(watchlist); }, [watchlist.join(',')]);
-
   useEffect(() => {
-    const interval = setInterval(() => {
-      setQuotes(prev => {
-        const updated = { ...prev };
-        Object.keys(updated).forEach(sym => {
-          const quote = updated[sym];
-          const newPrice = simulateLivePrice(quote.price, 0.0006);
-          const diff = newPrice - quote.previousClose;
-          updated[sym] = {
-            ...quote,
-            price: newPrice,
-            change: diff,
-            changePercent: (diff / quote.previousClose) * 100,
-            sparkline: [...quote.sparkline.slice(1), newPrice],
-          };
-        });
-        return updated;
-      });
-    }, 4000);
-    return () => clearInterval(interval);
-  }, []);
+    void loadQuotes(watchlist);
+  }, [watchlist.join(',')]);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -119,7 +107,7 @@ export default function Watchlist() {
         <div className="watch-hero-copy">
           <div className="market-open-pill">
             <span className="pulse-live" />
-            Market open · Live prices
+            {DATA_SOURCE_LABEL}{lastUpdated ? ` · Last updated ${lastUpdated}` : ''}
           </div>
           <h1>Market Watch</h1>
           <p>A calmer market intelligence workspace for tracking priority names, price action, and institutional-style context.</p>
@@ -168,6 +156,17 @@ export default function Watchlist() {
           </div>
         </div>
       </section>
+
+      {error && (
+        <div className="paper-error-banner">
+          <Activity size={17} />
+          <div>
+            <strong>Market data unavailable</strong>
+            <span>{error}</span>
+          </div>
+          <button onClick={handleRefresh}>Retry</button>
+        </div>
+      )}
 
       <section className="watch-overview-strip">
         <div>
@@ -237,7 +236,7 @@ export default function Watchlist() {
                     </div>
                     <div className="watch-card-metrics">
                       <div><span>Volume</span><strong>{formatVolume(quote.volume)}</strong></div>
-                      <div><span>Mkt Cap</span><strong>{formatMarketCap(quote.marketCap)}</strong></div>
+                      <div><span>Mkt Cap</span><strong>{quote.marketCap > 0 ? formatMarketCap(quote.marketCap) : '—'}</strong></div>
                       <div><span>P/E</span><strong>{quote.peRatio > 0 ? quote.peRatio.toFixed(1) : '—'}</strong></div>
                       <div><span>Beta</span><strong>{quote.beta.toFixed(2)}</strong></div>
                     </div>
@@ -279,7 +278,7 @@ export default function Watchlist() {
               </div>
 
               <div className="watch-detail-grid">
-                <div><span>Market cap</span><strong>{formatMarketCap(selected.marketCap)}</strong></div>
+                <div><span>Market cap</span><strong>{selected.marketCap > 0 ? formatMarketCap(selected.marketCap) : '—'}</strong></div>
                 <div><span>Volume</span><strong>{formatVolume(selected.volume)}</strong></div>
                 <div><span>Beta</span><strong>{selected.beta.toFixed(2)}</strong></div>
                 <div><span>Dividend</span><strong>{selected.dividendYield.toFixed(2)}%</strong></div>

@@ -7,7 +7,8 @@ import { calcDiversificationScore, formatCurrency, formatPercent } from '../util
 import AllocationChart from '../components/charts/AllocationChart';
 import Disclaimer from '../components/ui/Disclaimer';
 import StockSearch from '../components/ui/StockSearch';
-import { SECTOR_COLORS, STOCK_DATABASE } from '../data/mockStocks';
+import { SECTOR_COLORS } from '../data/mockStocks';
+import { DATA_SOURCE_LABEL } from '../services/marketDataService';
 import type { PortfolioHolding } from '../types';
 
 interface AddHoldingForm {
@@ -19,7 +20,7 @@ interface AddHoldingForm {
 
 function buildPerformanceData(holdings: PortfolioHolding[]) {
   const totalReturn = holdings.reduce((sum, holding) => sum + holding.weight * holding.gainLossPercent, 0);
-  const volatility = Math.max(0.8, holdings.reduce((sum, holding) => sum + holding.weight * (STOCK_DATABASE[holding.symbol]?.beta ?? 1), 0));
+  const volatility = Math.max(0.8, holdings.reduce((sum, holding) => sum + holding.weight, 0));
   const labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   return labels.map((month, index) => {
@@ -37,7 +38,7 @@ function buildPerformanceData(holdings: PortfolioHolding[]) {
 
 function buildRiskContribution(holdings: PortfolioHolding[]) {
   const raw = holdings.map(holding => {
-    const beta = STOCK_DATABASE[holding.symbol]?.beta ?? 1;
+    const beta = 1;
     return {
       symbol: holding.symbol,
       contribution: holding.weight * beta,
@@ -119,19 +120,35 @@ export default function PortfolioBuilder() {
     return () => { document.body.style.overflow = ''; };
   }, [drawerOpen]);
 
+  useEffect(() => {
+    if (holdings.length === 0) return;
+    let cancelled = false;
+    void Promise.all(holdings.map(async holding => {
+      const quote = await getStockQuote(holding.symbol);
+      if (!cancelled && quote) {
+        usePortfolioStore.getState().updateHoldingPrice(holding.symbol, quote.price);
+      }
+    }));
+    return () => { cancelled = true; };
+  }, [holdings.map(h => h.symbol).join(',')]);
+
   const handleAdd = async () => {
     if (!form.symbol) return;
     setAddLoading(true);
     const quote = await getStockQuote(form.symbol);
-    const price = quote?.price || STOCK_DATABASE[form.symbol]?.price || form.avgCost;
+    if (!quote) {
+      setAddLoading(false);
+      return;
+    }
+    const price = quote.price;
     addHolding({
       symbol: form.symbol,
-      name: quote?.name || STOCK_DATABASE[form.symbol]?.name || form.symbol,
+      name: quote.name,
       weight: form.weight,
       shares: form.shares,
       avgCost: form.avgCost,
       currentPrice: price,
-      sector: quote?.sector || STOCK_DATABASE[form.symbol]?.sector || 'Technology',
+      sector: quote.sector || 'Unknown',
     });
     setForm({ symbol: '', shares: 10, avgCost: 100, weight: 0.1 });
     setAddLoading(false);
@@ -144,7 +161,7 @@ export default function PortfolioBuilder() {
           <p>Portfolio</p>
           <h1>Portfolio Intelligence</h1>
         </div>
-        <span>A cleaner operating view for allocation, performance, concentration, and risk contribution.</span>
+        <span>A cleaner operating view for allocation, performance, concentration, and risk contribution. {DATA_SOURCE_LABEL} for current prices.</span>
       </div>
 
       <section className="portfolio-kpi-grid">
@@ -326,7 +343,7 @@ export default function PortfolioBuilder() {
 
             <div className="drawer-add-card">
               <StockSearch
-                onSelect={sym => setForm(f => ({ ...f, symbol: sym, avgCost: STOCK_DATABASE[sym]?.price || 100 }))}
+                onSelect={sym => setForm(f => ({ ...f, symbol: sym }))}
                 placeholder="Search ticker..."
               />
               <div className="drawer-form-grid">

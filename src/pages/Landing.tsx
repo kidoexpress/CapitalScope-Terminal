@@ -9,6 +9,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { CanvasRevealEffect } from "@/components/ui/canvas-reveal-effect";
 import { CapitalScopeFooter } from "@/components/ui/hover-footer";
+import { DATA_SOURCE_LABEL, getQuote, type MarketQuote } from "@/services/marketDataService";
 
 /* ─── Shared container ───────────────────────────────────────── */
 const CONTAINER: React.CSSProperties = {
@@ -140,6 +141,11 @@ const FEATURES: Feature[] = [
 /* ─── Research preview card ──────────────────────────────────── */
 function ResearchPreview() {
   const [tab, setTab] = useState<"thesis" | "peers" | "scenarios">("thesis");
+  const [quote, setQuote] = useState<MarketQuote | null>(null);
+
+  useEffect(() => {
+    void getQuote('NVDA').then(setQuote);
+  }, []);
 
   return (
     <div
@@ -184,11 +190,17 @@ function ResearchPreview() {
                 STRONG BUY
               </span>
             </div>
-            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>NVIDIA · Semiconductors · NASDAQ</p>
+            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>
+              NVIDIA · Semiconductors · NASDAQ · {DATA_SOURCE_LABEL}
+            </p>
           </div>
           <div style={{ textAlign: "right" }}>
-            <p style={{ fontSize: 22, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em" }}>$875.20</p>
-            <p style={{ fontSize: 13, fontWeight: 600, color: "#22c55e" }}>+2.41%</p>
+            <p style={{ fontSize: 22, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em" }}>
+              {quote ? `$${quote.price.toFixed(2)}` : "—"}
+            </p>
+            <p style={{ fontSize: 13, fontWeight: 600, color: (quote?.changePercent ?? 0) >= 0 ? "#22c55e" : "#f43f5e" }}>
+              {quote ? `${quote.changePercent >= 0 ? "+" : ""}${quote.changePercent.toFixed(2)}%` : "Yahoo unavailable"}
+            </p>
           </div>
         </div>
 

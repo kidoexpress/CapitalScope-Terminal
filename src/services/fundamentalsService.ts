@@ -5,8 +5,8 @@
 // ============================================================
 
 import { COMPANY_FUNDAMENTALS, type CompanyFundamentals } from '../data/financialData';
-import type { StockQuote } from '../types';
 import { getStockQuote } from '../utils/api';
+import { DATA_SOURCE_LABEL, getMarketDataMeta } from './marketDataService';
 
 const FMP_BASE = '/api/fmp/api/v3';
 const CACHE = new Map<string, { data: unknown; ts: number }>();
@@ -93,12 +93,21 @@ export async function buildFundamentalsContext(symbol: string): Promise<string> 
   }
 
   if (quote) {
+    const meta = getMarketDataMeta(quote as any);
+    lines.push(`MARKET DATA SOURCE: ${DATA_SOURCE_LABEL}`);
+    lines.push(`QUOTE TIMESTAMP: ${meta.lastUpdated}`);
+    lines.push(`DATA DELAY: Yahoo Finance quotes may be delayed.`);
     lines.push(`CURRENT PRICE: $${quote.price.toFixed(2)}`);
     lines.push(`DAY CHANGE: ${quote.changePercent >= 0 ? '+' : ''}${quote.changePercent.toFixed(2)}%`);
-    lines.push(`MARKET CAP: $${(quote.marketCap / 1e9).toFixed(1)}B`);
+    lines.push(`MARKET CAP: ${quote.marketCap > 0 ? `$${(quote.marketCap / 1e9).toFixed(1)}B` : 'unavailable from current Yahoo response'}`);
     lines.push(`52W RANGE: $${quote.low52w.toFixed(2)} – $${quote.high52w.toFixed(2)}`);
-    lines.push(`P/E RATIO: ${quote.peRatio.toFixed(1)}x`);
+    lines.push(`P/E RATIO: ${quote.peRatio > 0 ? `${quote.peRatio.toFixed(1)}x` : 'unavailable from current Yahoo response'}`);
     lines.push(`BETA: ${quote.beta.toFixed(2)}`);
+    lines.push('');
+  } else {
+    lines.push(`MARKET DATA SOURCE: ${DATA_SOURCE_LABEL}`);
+    lines.push('CURRENT MARKET DATA: unavailable from Yahoo Finance.');
+    lines.push('Do not infer or invent current price, market cap, volume, or valuation metrics.');
     lines.push('');
   }
 

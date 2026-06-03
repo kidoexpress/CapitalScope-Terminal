@@ -11,7 +11,8 @@ import {
 } from 'lucide-react';
 import PriceChart from '../components/charts/PriceChart';
 import type { StockQuote, AIInsight } from '../types';
-import { getStockQuote, getStockHistory, simulateLivePrice } from '../utils/api';
+import { getStockQuote, getStockHistory } from '../utils/api';
+import { DATA_SOURCE_LABEL } from '../services/marketDataService';
 import { calcAllMetrics, formatMarketCap, formatVolume, formatPercent, formatCurrency } from '../utils/finance';
 import { usePortfolioStore } from '../store/portfolioStore';
 
@@ -121,6 +122,8 @@ export default function StockAnalyzer() {
   const [insights, setInsights] = useState<AIInsight[]>([]);
   const [compareMode, setCompareMode] = useState(false);
   const [showSecondary, setShowSecondary] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const prevSymbol = useRef(symbol);
   const { addToWatchlist, watchlist } = usePortfolioStore();
   const inWatchlist = watchlist.includes(symbol);
@@ -132,6 +135,7 @@ export default function StockAnalyzer() {
 
   const loadStock = useCallback(async (sym: string) => {
     setLoading(true);
+    setLoadError(null);
     const [q, history, spyHistory] = await Promise.all([
       getStockQuote(sym),
       getStockHistory(sym, '1Y'),
@@ -139,12 +143,18 @@ export default function StockAnalyzer() {
     ]);
     if (q) {
       setQuote(q);
+      setLastUpdated(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
       const prices = history.map(p => p.close);
       const spyPrices = spyHistory.map(p => p.close);
       const m = calcAllMetrics(prices, spyPrices, 1);
       m.symbol = sym;
       setMetrics(m);
       setInsights(generateInsights(q, m));
+    } else {
+      setQuote(null);
+      setMetrics(null);
+      setInsights([]);
+      setLoadError(`Market data unavailable for ${sym}.`);
     }
     setLoading(false);
   }, []);
@@ -153,15 +163,6 @@ export default function StockAnalyzer() {
     if (symbol !== prevSymbol.current) prevSymbol.current = symbol;
     loadStock(symbol);
   }, [symbol]);
-
-  // Live price simulation
-  useEffect(() => {
-    if (!quote) return;
-    const interval = setInterval(() => {
-      setQuote(q => q ? { ...q, price: simulateLivePrice(q.price, 0.0007) } : q);
-    }, 3500);
-    return () => clearInterval(interval);
-  }, [quote?.symbol]);
 
   const isUp = (quote?.changePercent ?? 0) >= 0;
 
@@ -180,8 +181,10 @@ export default function StockAnalyzer() {
   }
 
   if (!quote) return (
-    <div className="flex items-center justify-center h-64 text-sm" style={{ color: 'var(--text-lo)' }}>
-      No data available
+    <div className="workflow-card flex flex-col items-center justify-center h-64 gap-3 text-sm" style={{ color: 'var(--text-lo)' }}>
+      <strong style={{ color: 'var(--text-hi)' }}>Market data unavailable</strong>
+      <span>{loadError ?? 'Yahoo Finance did not return quote data for this ticker.'}</span>
+      <button className="secondary-action" onClick={() => void loadStock(symbol)}>Retry Yahoo Finance</button>
     </div>
   );
 
@@ -230,6 +233,9 @@ export default function StockAnalyzer() {
               <div>
                 <div className="text-base font-medium" style={{ color: 'var(--text-mid)' }}>{quote.name}</div>
                 <div className="text-xs mt-0.5" style={{ color: 'var(--text-lo)' }}>{quote.industry}</div>
+                <div className="text-[10px] mt-2" style={{ color: 'var(--text-lo)' }}>
+                  {DATA_SOURCE_LABEL}{lastUpdated ? ` · Last updated ${lastUpdated}` : ''} · Delayed
+                </div>
               </div>
 
               {/* Action buttons */}
@@ -347,7 +353,7 @@ export default function StockAnalyzer() {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <MetricTile
           label="Market Cap"
-          value={formatMarketCap(quote.marketCap)}
+          value={quote.marketCap > 0 ? formatMarketCap(quote.marketCap) : '—'}
           hint="Total market capitalization"
         />
         <MetricTile

@@ -16,33 +16,7 @@ interface PortfolioState {
   clearPortfolio: () => void;
 }
 
-const DEFAULT_HOLDINGS: PortfolioHolding[] = [
-  {
-    symbol: 'AAPL', name: 'Apple Inc.', weight: 0.30, shares: 15,
-    avgCost: 172.40, currentPrice: 189.30, value: 2839.50,
-    gainLoss: 253.50, gainLossPercent: 9.80, sector: 'Technology',
-  },
-  {
-    symbol: 'MSFT', name: 'Microsoft Corp.', weight: 0.25, shares: 5,
-    avgCost: 380.00, currentPrice: 415.20, value: 2076.00,
-    gainLoss: 176.00, gainLossPercent: 9.26, sector: 'Technology',
-  },
-  {
-    symbol: 'NVDA', name: 'NVIDIA Corp.', weight: 0.20, shares: 2,
-    avgCost: 620.00, currentPrice: 875.40, value: 1750.80,
-    gainLoss: 510.80, gainLossPercent: 41.19, sector: 'Technology',
-  },
-  {
-    symbol: 'JPM', name: 'JPMorgan Chase', weight: 0.15, shares: 6,
-    avgCost: 178.00, currentPrice: 198.60, value: 1191.60,
-    gainLoss: 123.60, gainLossPercent: 11.57, sector: 'Financials',
-  },
-  {
-    symbol: 'XOM', name: 'Exxon Mobil', weight: 0.10, shares: 7,
-    avgCost: 104.00, currentPrice: 112.40, value: 786.80,
-    gainLoss: 58.80, gainLossPercent: 8.08, sector: 'Energy',
-  },
-];
+const DEFAULT_HOLDINGS: PortfolioHolding[] = [];
 
 export const usePortfolioStore = create<PortfolioState>()(
   persist(

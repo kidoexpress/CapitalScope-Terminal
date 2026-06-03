@@ -3,6 +3,8 @@
 // Powers: Stock Research Report & Gold Mining Scanner
 // ============================================================
 
+import { DATA_SOURCE_LABEL, getQuote } from './marketDataService';
+
 const CLAUDE_MODEL = 'claude-opus-4-5';
 
 // ─── Types ────────────────────────────────────────────────────
@@ -255,6 +257,7 @@ export async function generateDeepDive(
   params: DeepDiveParams,
   onChunk?: (text: string) => void
 ): Promise<DeepDiveResult> {
+  const quote = await getQuote(params.ticker).catch(() => null);
   const fundCtx = PEER_DB[params.ticker.toUpperCase()]
     ? `P/S: ${PEER_DB[params.ticker.toUpperCase()].psTTM}x | Gross Margin: ${PEER_DB[params.ticker.toUpperCase()].grossMargin}% | YoY Growth: ${PEER_DB[params.ticker.toUpperCase()].yoyGrowth}%`
     : 'No fundamental data pre-loaded';
@@ -267,6 +270,10 @@ RISK TOLERANCE: ${params.riskTolerance ?? 'moderate'}
 ${params.thesis ? `INVESTOR THESIS: ${params.thesis}` : ''}
 ${params.portfolioProfile ? `PORTFOLIO CONTEXT: ${params.portfolioProfile}` : ''}
 AVAILABLE FUNDAMENTALS: ${fundCtx}
+CURRENT MARKET DATA:
+${quote
+  ? `${DATA_SOURCE_LABEL}; quote timestamp ${quote.lastUpdated}; current price $${quote.price.toFixed(2)}; day change ${quote.changePercent.toFixed(2)}%; market cap ${quote.marketCap > 0 ? `$${(quote.marketCap / 1e9).toFixed(1)}B` : 'unavailable from current Yahoo response'}; volume ${quote.volume ? quote.volume.toLocaleString() : 'unavailable'}`
+  : `${DATA_SOURCE_LABEL}; market data unavailable. Do not invent current price, market cap, or volume.`}
 
 Generate the deep dive research report.
 `;

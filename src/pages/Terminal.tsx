@@ -66,7 +66,8 @@ const VERSION_TEXT = `CapitalScope Terminal v2.5.0
 Claude-powered Investment Research Platform
 Built with React + TypeScript + Vite + TailwindCSS
 AI Engine: Claude claude-opus-4-5 (streaming)
-Data: Finnhub | FMP | Yahoo Finance | Mock fallbacks
+Market data: Yahoo Finance unified layer
+AI/fundamentals: Anthropic/FMP/Finnhub when keys are configured
 ⚠  Educational use only. Not financial advice.`;
 
 const DEMO_SEQUENCE = [

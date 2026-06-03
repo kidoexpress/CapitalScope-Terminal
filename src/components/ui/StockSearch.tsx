@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Search, X, TrendingUp, TrendingDown } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { searchStocks } from '../../utils/api';
 import { POPULAR_TICKERS, STOCK_DATABASE } from '../../data/mockStocks';
 
@@ -105,10 +105,7 @@ export default function StockSearch({ onSelect, placeholder = 'Search ticker or 
               POPULAR TICKERS
             </div>
           )}
-          {results.map((r) => {
-            const stock = STOCK_DATABASE[r.symbol];
-            const change = stock?.changePercent ?? 0;
-            return (
+          {results.map((r) => (
               <button
                 key={r.symbol}
                 onMouseDown={() => handleSelect(r.symbol)}
@@ -125,21 +122,10 @@ export default function StockSearch({ onSelect, placeholder = 'Search ticker or 
                   <div className="text-[10px] truncate" style={{ color: '#475569' }}>{r.name}</div>
                 </div>
                 <div className="text-right shrink-0">
-                  {stock?.price && (
-                    <div className="text-xs font-mono" style={{ color: '#94a3b8' }}>${stock.price.toFixed(2)}</div>
-                  )}
-                  {change !== undefined && (
-                    <div className="flex items-center gap-0.5 justify-end">
-                      {change >= 0 ? <TrendingUp size={9} style={{ color: '#10b981' }} /> : <TrendingDown size={9} style={{ color: '#ef4444' }} />}
-                      <span className="text-[10px] font-mono" style={{ color: change >= 0 ? '#10b981' : '#ef4444' }}>
-                        {change >= 0 ? '+' : ''}{change.toFixed(2)}%
-                      </span>
-                    </div>
-                  )}
+                  <div className="text-[10px] font-mono" style={{ color: '#64748b' }}>Yahoo quote on select</div>
                 </div>
               </button>
-            );
-          })}
+          ))}
         </div>
       )}
     </div>

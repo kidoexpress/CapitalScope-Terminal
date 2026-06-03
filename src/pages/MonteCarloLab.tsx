@@ -1,19 +1,68 @@
-import { useState, useCallback, useMemo } from 'react';
-import { FlaskConical, Play, RefreshCw } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
-import { runMonteCarlo, buildHistogram } from '../utils/monteCarlo';
+import { ArrowUpRight, FlaskConical, Play, RefreshCw, SlidersHorizontal, Sparkles } from 'lucide-react';
 import MonteCarloChart from '../components/charts/MonteCarloChart';
+import { buildHistogram, runMonteCarlo } from '../utils/monteCarlo';
 import { formatCurrency, formatPercent } from '../utils/finance';
-import { usePortfolioStore, getTotalValue } from '../store/portfolioStore';
-import Disclaimer from '../components/ui/Disclaimer';
-import { AIInsightPanel } from '../components/ui/AIInsightCard';
-import type { AIInsight } from '../types';
+import { getTotalValue, usePortfolioStore } from '../store/portfolioStore';
+import { DATA_SOURCE_LABEL } from '../services/marketDataService';
+import { getStockQuote } from '../utils/api';
 
 const SIMULATIONS = 500;
+
+const PRESETS = [
+  { label: 'Conservative', description: 'Lower growth, lower volatility', ret: 5.5, vol: 8 },
+  { label: 'Balanced', description: 'Broad equity-style profile', ret: 8, vol: 16 },
+  { label: 'Growth', description: 'Higher upside with wider paths', ret: 12, vol: 24 },
+  { label: 'Aggressive', description: 'Risk-on portfolio assumptions', ret: 16, vol: 34 },
+  { label: 'Crypto-like', description: 'Extreme volatility stress case', ret: 22, vol: 68 },
+];
+
+function ForecastSlider({
+  label,
+  value,
+  display,
+  min,
+  max,
+  step,
+  helper,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  display: string;
+  min: number;
+  max: number;
+  step: number;
+  helper: string;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <label className="forecast-control">
+      <div>
+        <span>{label}</span>
+        <strong>{display}</strong>
+      </div>
+      <input type="range" min={min} max={max} step={step} value={value} onChange={event => onChange(Number(event.target.value))} />
+      <em>{helper}</em>
+    </label>
+  );
+}
+
+function OutcomeCard({ label, value, detail, tone }: { label: string; value: string; detail: string; tone: 'good' | 'warn' | 'bad' | 'neutral' }) {
+  return (
+    <div className={`forecast-outcome-card ${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <p>{detail}</p>
+    </div>
+  );
+}
 
 export default function MonteCarloLab() {
   const { holdings } = usePortfolioStore();
   const totalValue = getTotalValue(holdings);
+  const holdingSymbols = holdings.map(h => h.symbol).join(',');
 
   const [params, setParams] = useState({
     initialValue: Math.round(totalValue) || 10000,
@@ -22,276 +71,237 @@ export default function MonteCarloLab() {
     years: 10,
     numSims: SIMULATIONS,
   });
-
   const [running, setRunning] = useState(false);
+  const [activePreset, setActivePreset] = useState('Balanced');
   const [result, setResult] = useState(() =>
     runMonteCarlo(params.initialValue, params.annualReturn / 100, params.annualVol / 100, params.years, SIMULATIONS)
   );
 
+  useEffect(() => {
+    if (!holdings.length) return;
+    let cancelled = false;
+    void Promise.all(holdings.map(async holding => {
+      const quote = await getStockQuote(holding.symbol);
+      if (!cancelled && quote) {
+        usePortfolioStore.getState().updateHoldingPrice(holding.symbol, quote.price);
+      }
+    }));
+    return () => { cancelled = true; };
+  }, [holdingSymbols]);
+
+  useEffect(() => {
+    if (totalValue > 0) {
+      setParams(prev => ({ ...prev, initialValue: Math.round(totalValue) }));
+    }
+  }, [totalValue]);
+
   const runSimulation = useCallback(() => {
     setRunning(true);
-    // Use setTimeout to allow UI to update
-    setTimeout(() => {
-      const r = runMonteCarlo(
+    window.setTimeout(() => {
+      setResult(runMonteCarlo(
         params.initialValue,
         params.annualReturn / 100,
         params.annualVol / 100,
         params.years,
         params.numSims
-      );
-      setResult(r);
+      ));
       setRunning(false);
-    }, 50);
+    }, 380);
   }, [params]);
 
-  const histogram = useMemo(() => buildHistogram(result.finalValues, 25), [result]);
+  const applyPreset = (preset: typeof PRESETS[number]) => {
+    setActivePreset(preset.label);
+    setParams(prev => ({ ...prev, annualReturn: preset.ret, annualVol: preset.vol }));
+  };
 
-  const insights: AIInsight[] = [
-    {
-      type: result.probabilityProfit > 70 ? 'opportunity' : result.probabilityProfit > 50 ? 'info' : 'warning',
-      title: `${result.probabilityProfit.toFixed(0)}% Probability of Profit`,
-      body: `Based on ${params.numSims} simulated paths over ${params.years} years, there is a ${result.probabilityProfit.toFixed(0)}% probability of ending above your initial investment of ${formatCurrency(params.initialValue)}.`,
-      metric: `${result.probabilityProfit.toFixed(0)}%`,
-    },
-    {
-      type: 'info',
-      title: 'Median Expected Outcome',
-      body: `The median portfolio value after ${params.years} years is ${formatCurrency(result.percentiles.p50[result.percentiles.p50.length - 1])}, representing a ${result.expectedReturn.toFixed(1)}% return. This is the "most likely" outcome under the given assumptions.`,
-      metric: `+${result.expectedReturn.toFixed(1)}%`,
-    },
-    {
-      type: 'risk',
-      title: '5th Percentile Downside',
-      body: `In the worst 5% of scenarios, the portfolio ends at ${formatCurrency(result.percentiles.p5[result.percentiles.p5.length - 1])} — a ${result.downsideRisk.toFixed(1)}% loss. This represents the tail risk of your investment strategy.`,
-      metric: `${result.downsideRisk.toFixed(1)}%`,
-    },
-    {
-      type: 'info',
-      title: 'Simulation Assumptions',
-      body: `This model uses Geometric Brownian Motion — a standard finance assumption of log-normally distributed returns. Real markets exhibit fat tails, serial correlation, and regime changes not captured here.`,
-    },
-  ];
-
+  const histogram = useMemo(() => buildHistogram(result.finalValues, 24), [result]);
   const finalP95 = result.percentiles.p95[result.percentiles.p95.length - 1];
+  const finalP75 = result.percentiles.p75[result.percentiles.p75.length - 1];
   const finalP50 = result.percentiles.p50[result.percentiles.p50.length - 1];
+  const finalP25 = result.percentiles.p25[result.percentiles.p25.length - 1];
   const finalP5 = result.percentiles.p5[result.percentiles.p5.length - 1];
+  const probabilityLoss = 100 - result.probabilityProfit;
+  const upsideRange = ((finalP95 / params.initialValue - 1) * 100);
+  const downsideRange = ((finalP5 / params.initialValue - 1) * 100);
 
   return (
-    <div className="flex flex-col gap-4 animate-fade-in-up">
-      {/* Header */}
-      <div className="flex items-center gap-2">
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'rgba(6,182,212,0.15)' }}>
-          <FlaskConical size={14} style={{ color: '#06b6d4' }} />
+    <div className="forecast-lab-page animate-fade-in-up">
+      <section className="forecast-hero">
+        <div>
+          <span className="section-kicker">Forecasting</span>
+          <h1>Monte Carlo Forecast Lab</h1>
+          <p>Simulate thousands of possible portfolio paths and understand upside, downside, and uncertainty.</p>
         </div>
-        <h2 className="text-sm font-semibold" style={{ color: '#94a3b8' }}>Monte Carlo Simulation — Geometric Brownian Motion</h2>
-        <span className="text-[9px] px-2 py-0.5 rounded font-mono" style={{ background: 'rgba(6,182,212,0.1)', color: '#06b6d4', border: '1px solid rgba(6,182,212,0.2)' }}>
-          {params.numSims} PATHS
-        </span>
-      </div>
+        <div className="forecast-meta">
+          <span>{DATA_SOURCE_LABEL}</span>
+          <strong>{params.numSims.toLocaleString()} simulations</strong>
+        </div>
+      </section>
 
-      <div className="grid grid-cols-3 gap-4">
-        {/* Configuration */}
-        <div className="flex flex-col gap-3">
-          <div className="glass-panel p-4 rounded-xl">
-            <h3 className="text-xs font-semibold mb-4" style={{ color: '#94a3b8' }}>SIMULATION PARAMETERS</h3>
-            <div className="flex flex-col gap-4">
-              {/* Initial value */}
-              <div>
-                <div className="flex justify-between mb-1.5">
-                  <span className="text-[10px] font-medium" style={{ color: '#64748b' }}>Initial Value</span>
-                  <span className="text-[10px] font-mono font-semibold" style={{ color: '#e2e8f0' }}>{formatCurrency(params.initialValue)}</span>
-                </div>
-                <input type="range" min={1000} max={1000000} step={1000}
-                  value={params.initialValue}
-                  onChange={e => setParams(p => ({ ...p, initialValue: +e.target.value }))}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-[9px] mt-0.5" style={{ color: '#334155' }}>
-                  <span>$1k</span><span>$1M</span>
-                </div>
-              </div>
-
-              {/* Expected return */}
-              <div>
-                <div className="flex justify-between mb-1.5">
-                  <span className="text-[10px] font-medium" style={{ color: '#64748b' }}>Expected Annual Return</span>
-                  <span className="text-[10px] font-mono font-semibold" style={{ color: '#10b981' }}>{params.annualReturn}%</span>
-                </div>
-                <input type="range" min={-5} max={30} step={0.5}
-                  value={params.annualReturn}
-                  onChange={e => setParams(p => ({ ...p, annualReturn: +e.target.value }))}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-[9px] mt-0.5" style={{ color: '#334155' }}>
-                  <span>-5%</span><span>30%</span>
-                </div>
-              </div>
-
-              {/* Volatility */}
-              <div>
-                <div className="flex justify-between mb-1.5">
-                  <span className="text-[10px] font-medium" style={{ color: '#64748b' }}>Annual Volatility (σ)</span>
-                  <span className="text-[10px] font-mono font-semibold" style={{ color: '#f59e0b' }}>{params.annualVol}%</span>
-                </div>
-                <input type="range" min={5} max={80} step={1}
-                  value={params.annualVol}
-                  onChange={e => setParams(p => ({ ...p, annualVol: +e.target.value }))}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-[9px] mt-0.5" style={{ color: '#334155' }}>
-                  <span>5% (bonds)</span><span>80% (crypto)</span>
-                </div>
-              </div>
-
-              {/* Time horizon */}
-              <div>
-                <div className="flex justify-between mb-1.5">
-                  <span className="text-[10px] font-medium" style={{ color: '#64748b' }}>Time Horizon</span>
-                  <span className="text-[10px] font-mono font-semibold" style={{ color: '#8b5cf6' }}>{params.years} years</span>
-                </div>
-                <input type="range" min={1} max={30} step={1}
-                  value={params.years}
-                  onChange={e => setParams(p => ({ ...p, years: +e.target.value }))}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-[9px] mt-0.5" style={{ color: '#334155' }}>
-                  <span>1 yr</span><span>30 yrs</span>
-                </div>
-              </div>
-
-              {/* Simulations */}
-              <div>
-                <div className="flex justify-between mb-1.5">
-                  <span className="text-[10px] font-medium" style={{ color: '#64748b' }}>Simulation Paths</span>
-                  <span className="text-[10px] font-mono font-semibold" style={{ color: '#06b6d4' }}>{params.numSims.toLocaleString()}</span>
-                </div>
-                <input type="range" min={100} max={1000} step={100}
-                  value={params.numSims}
-                  onChange={e => setParams(p => ({ ...p, numSims: +e.target.value }))}
-                  className="w-full"
-                />
-              </div>
-
-              <button
-                onClick={runSimulation}
-                disabled={running}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all mt-1"
-                style={{ background: 'linear-gradient(135deg, #06b6d4, #8b5cf6)', color: 'white', opacity: running ? 0.7 : 1, boxShadow: running ? 'none' : '0 4px 15px rgba(6,182,212,0.25)' }}
-              >
-                {running ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} />}
-                {running ? 'Running...' : 'Run Simulation'}
-              </button>
+      <section className="forecast-workspace">
+        <aside className="forecast-setup-card">
+          <div className="forecast-card-header">
+            <div>
+              <span className="section-kicker">Setup</span>
+              <h2>Simulation Assumptions</h2>
             </div>
+            <SlidersHorizontal size={18} />
           </div>
 
-          {/* Preset scenarios */}
-          <div className="glass-panel p-4 rounded-xl">
-            <h3 className="text-xs font-semibold mb-3" style={{ color: '#94a3b8' }}>QUICK PRESETS</h3>
-            <div className="flex flex-col gap-1.5">
-              {[
-                { label: 'S&P 500 Historical', ret: 10, vol: 15 },
-                { label: 'Aggressive Growth', ret: 15, vol: 25 },
-                { label: 'Conservative', ret: 6, vol: 10 },
-                { label: 'Crypto-style', ret: 20, vol: 65 },
-                { label: 'Emerging Markets', ret: 12, vol: 22 },
-              ].map(preset => (
-                <button
-                  key={preset.label}
-                  onClick={() => setParams(p => ({ ...p, annualReturn: preset.ret, annualVol: preset.vol }))}
-                  className="flex items-center justify-between px-3 py-2 rounded-lg text-[10px] transition-all"
-                  style={{ background: 'rgba(99,102,241,0.04)', border: '1px solid rgba(99,102,241,0.08)', color: '#64748b' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(99,102,241,0.1)'; (e.currentTarget as HTMLElement).style.color = '#94a3b8'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(99,102,241,0.04)'; (e.currentTarget as HTMLElement).style.color = '#64748b'; }}
-                >
-                  <span>{preset.label}</span>
-                  <span className="font-mono">{preset.ret}% / {preset.vol}%σ</span>
-                </button>
-              ))}
+          <ForecastSlider
+            label="Initial value"
+            value={params.initialValue}
+            display={formatCurrency(params.initialValue, 0)}
+            min={1000}
+            max={1000000}
+            step={1000}
+            helper="Use portfolio value or enter a custom starting point."
+            onChange={value => setParams(prev => ({ ...prev, initialValue: value }))}
+          />
+          <ForecastSlider
+            label="Expected return"
+            value={params.annualReturn}
+            display={`${params.annualReturn.toFixed(1)}%`}
+            min={-5}
+            max={30}
+            step={0.5}
+            helper="Annualized expected return assumption."
+            onChange={value => setParams(prev => ({ ...prev, annualReturn: value }))}
+          />
+          <ForecastSlider
+            label="Volatility"
+            value={params.annualVol}
+            display={`${params.annualVol.toFixed(0)}%`}
+            min={5}
+            max={80}
+            step={1}
+            helper="Higher volatility widens the probability cone."
+            onChange={value => setParams(prev => ({ ...prev, annualVol: value }))}
+          />
+          <ForecastSlider
+            label="Time horizon"
+            value={params.years}
+            display={`${params.years} years`}
+            min={1}
+            max={30}
+            step={1}
+            helper="Longer horizons compound uncertainty."
+            onChange={value => setParams(prev => ({ ...prev, years: value }))}
+          />
+          <ForecastSlider
+            label="Simulations"
+            value={params.numSims}
+            display={params.numSims.toLocaleString()}
+            min={100}
+            max={1000}
+            step={100}
+            helper="More paths smooth the distribution."
+            onChange={value => setParams(prev => ({ ...prev, numSims: value }))}
+          />
+
+          <button className="forecast-run-button" onClick={runSimulation} disabled={running}>
+            {running ? <RefreshCw size={16} className="animate-spin" /> : <Play size={16} />}
+            {running ? 'Running forecast...' : 'Run Forecast'}
+          </button>
+        </aside>
+
+        <div className="forecast-primary-card">
+          <div className="forecast-card-header">
+            <div>
+              <span className="section-kicker">Probability Cone</span>
+              <h2>Portfolio Path Forecast</h2>
             </div>
+            <div className="forecast-chart-legend">
+              <span><i className="green" />P95</span>
+              <span><i className="blue" />Median</span>
+              <span><i className="red" />P5</span>
+            </div>
+          </div>
+          <div className="forecast-chart-shell">
+            {running && <div className="forecast-chart-loading"><span className="button-spinner" /> Recalculating paths...</div>}
+            <MonteCarloChart result={result} initialValue={params.initialValue} height={390} />
           </div>
         </div>
+      </section>
 
-        {/* Charts */}
-        <div className="col-span-2 flex flex-col gap-3">
-          {/* Outcome summary */}
-          <div className="grid grid-cols-4 gap-3">
-            {[
-              { label: 'Best Case (P95)', value: formatCurrency(finalP95), sub: formatPercent((finalP95 / params.initialValue - 1) * 100), color: '#10b981' },
-              { label: 'Expected (P50)', value: formatCurrency(finalP50), sub: `+${result.expectedReturn.toFixed(1)}%`, color: '#3b82f6' },
-              { label: 'Worst Case (P5)', value: formatCurrency(finalP5), sub: formatPercent((finalP5 / params.initialValue - 1) * 100), color: '#ef4444' },
-              { label: 'Profit Probability', value: `${result.probabilityProfit.toFixed(0)}%`, sub: `${params.years}-year horizon`, color: result.probabilityProfit > 70 ? '#10b981' : '#f59e0b' },
-            ].map(m => (
-              <div key={m.label} className="glass-panel p-3 rounded-xl">
-                <div className="text-[9px] font-semibold uppercase tracking-wider mb-2" style={{ color: '#334155' }}>{m.label}</div>
-                <div className="text-lg font-mono font-bold" style={{ color: m.color }}>{m.value}</div>
-                <div className="text-[10px] font-mono" style={{ color: m.color + 'aa' }}>{m.sub}</div>
-              </div>
-            ))}
-          </div>
+      <section className="forecast-preset-row">
+        {PRESETS.map(preset => (
+          <button
+            key={preset.label}
+            className={`forecast-preset-card ${activePreset === preset.label ? 'active' : ''}`}
+            onClick={() => applyPreset(preset)}
+          >
+            <strong>{preset.label}</strong>
+            <span>{preset.description}</span>
+            <em>{preset.ret}% return / {preset.vol}% vol</em>
+          </button>
+        ))}
+      </section>
 
-          {/* Fan chart */}
-          <div className="glass-panel p-4 rounded-xl">
-            <h3 className="text-xs font-semibold mb-2" style={{ color: '#94a3b8' }}>SIMULATION FAN CHART — PERCENTILE BANDS</h3>
-            <div className="flex items-center gap-4 mb-3 text-[9px] font-mono flex-wrap">
-              {[
-                { label: 'P95 Bull', color: '#10b981' },
-                { label: 'P75', color: '#6ee7b7' },
-                { label: 'P50 Median', color: '#3b82f6' },
-                { label: 'P25', color: '#fbbf24' },
-                { label: 'P5 Bear', color: '#ef4444' },
-              ].map(l => (
-                <div key={l.label} className="flex items-center gap-1">
-                  <div className="w-4 h-0.5" style={{ background: l.color }} />
-                  <span style={{ color: '#475569' }}>{l.label}</span>
-                </div>
-              ))}
-            </div>
-            <MonteCarloChart result={result} initialValue={params.initialValue} height={260} />
-          </div>
+      <section className="forecast-outcome-grid">
+        <OutcomeCard label="Expected Value" value={formatCurrency(finalP50, 0)} detail={`${formatPercent(result.expectedReturn, 1)} median return`} tone="neutral" />
+        <OutcomeCard label="Best Case" value={formatCurrency(finalP95, 0)} detail={`${formatPercent(upsideRange, 1)} 95th percentile`} tone="good" />
+        <OutcomeCard label="Worst Case" value={formatCurrency(finalP5, 0)} detail={`${formatPercent(downsideRange, 1)} 5th percentile`} tone="bad" />
+        <OutcomeCard label="Profit Probability" value={`${result.probabilityProfit.toFixed(0)}%`} detail={`${probabilityLoss.toFixed(0)}% probability of loss`} tone={result.probabilityProfit >= 65 ? 'good' : result.probabilityProfit >= 45 ? 'warn' : 'bad'} />
+        <OutcomeCard label="Downside Risk" value={formatCurrency(finalP25, 0)} detail="25th percentile support zone" tone="warn" />
+      </section>
 
-          {/* Distribution histogram */}
-          <div className="glass-panel p-4 rounded-xl">
-            <h3 className="text-xs font-semibold mb-3" style={{ color: '#94a3b8' }}>FINAL VALUE DISTRIBUTION</h3>
-            <ResponsiveContainer width="100%" height={140}>
-              <BarChart data={histogram} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(99,102,241,0.06)" vertical={false} />
-                <XAxis dataKey="range" tick={{ fill: '#334155', fontSize: 9, fontFamily: 'JetBrains Mono' }} tickLine={false} axisLine={false} interval={4} />
-                <YAxis tick={{ fill: '#334155', fontSize: 9, fontFamily: 'JetBrains Mono' }} tickLine={false} axisLine={false} width={30} />
-                <Tooltip
-                  formatter={(v) => [`${v}`, 'Paths']}
-                  contentStyle={{ background: 'rgba(8,8,20,0.98)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 8, fontSize: 11, fontFamily: 'JetBrains Mono' }}
-                />
-                <ReferenceLine
-                  x={(() => {
-                    if (!histogram.length) return undefined;
-                    const target = params.initialValue;
-                    return histogram.reduce((prev, curr) =>
-                      Math.abs(curr.value - target) < Math.abs(prev.value - target) ? curr : prev
-                    ).range;
-                  })()}
-                  stroke="var(--accent)"
-                  strokeDasharray="4 3"
-                  label={{ value: 'Start', position: 'top', fontSize: 10 }}
-                />
-                <Bar dataKey="count" radius={[2, 2, 0, 0]}>
-                  {histogram.map((entry, index) => (
-                    <Cell key={index} fill={entry.value >= params.initialValue ? '#10b981' : '#ef4444'} fillOpacity={0.7} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-            <div className="flex items-center gap-4 mt-2 text-[9px] font-mono justify-center">
-              <div className="flex items-center gap-1"><div className="w-2 h-2 rounded" style={{ background: '#10b981' }} /><span style={{ color: '#475569' }}>Above initial</span></div>
-              <div className="flex items-center gap-1"><div className="w-2 h-2 rounded" style={{ background: '#ef4444' }} /><span style={{ color: '#475569' }}>Below initial</span></div>
+      <section className="forecast-bottom-grid">
+        <div className="forecast-distribution-card">
+          <div className="forecast-card-header">
+            <div>
+              <span className="section-kicker">Distribution</span>
+              <h2>Final Value Range</h2>
             </div>
           </div>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={histogram} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+              <XAxis dataKey="range" tick={{ fill: 'rgba(255,255,255,0.36)', fontSize: 10 }} tickLine={false} axisLine={false} interval={4} />
+              <YAxis tick={{ fill: 'rgba(255,255,255,0.36)', fontSize: 10 }} tickLine={false} axisLine={false} width={32} />
+              <Tooltip
+                formatter={(value) => [`${value}`, 'Paths']}
+                contentStyle={{ background: 'rgba(10,12,18,0.96)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, fontSize: 12 }}
+              />
+              <ReferenceLine
+                x={histogram.reduce((prev, curr) =>
+                  Math.abs(curr.value - params.initialValue) < Math.abs(prev.value - params.initialValue) ? curr : prev
+                ).range}
+                stroke="rgba(138,164,255,0.85)"
+                strokeDasharray="4 3"
+                label={{ value: 'Start', position: 'top', fontSize: 10, fill: 'rgba(255,255,255,0.58)' }}
+              />
+              <Bar dataKey="count" radius={[5, 5, 0, 0]}>
+                {histogram.map((entry, index) => (
+                  <Cell key={index} fill={entry.value >= params.initialValue ? '#55d99a' : '#ec6f86'} fillOpacity={0.72} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
-      </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <AIInsightPanel insights={insights} title="Simulation Analysis" />
-        <Disclaimer />
-      </div>
+        <aside className="forecast-memo-card">
+          <div className="forecast-card-header">
+            <div>
+              <span className="section-kicker">AI Simulation Analysis</span>
+              <h2>Forecast Memo</h2>
+            </div>
+            <Sparkles size={18} />
+          </div>
+          <div className="forecast-memo-hero">
+            <span>Expected outcome</span>
+            <strong>{formatCurrency(finalP50, 0)}</strong>
+            <em>{formatPercent(result.expectedReturn, 1)} median return over {params.years} years</em>
+          </div>
+          <div className="forecast-memo-list">
+            <p><strong>Downside risk:</strong> 5th percentile ends near {formatCurrency(finalP5, 0)}, or {formatPercent(downsideRange, 1)} from today.</p>
+            <p><strong>Upside range:</strong> 95th percentile reaches {formatCurrency(finalP95, 0)}, with the upper quartile around {formatCurrency(finalP75, 0)}.</p>
+            <p><strong>Probability of loss:</strong> {probabilityLoss.toFixed(0)}% of simulated paths finish below the starting value.</p>
+            <p><strong>Key sensitivity:</strong> volatility is the largest driver of path width; return assumptions mostly shift the cone upward or downward.</p>
+          </div>
+          <div className="risk-disclaimer">Educational projections only. Not financial advice.</div>
+        </aside>
+      </section>
     </div>
   );
 }

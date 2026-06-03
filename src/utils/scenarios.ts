@@ -1,5 +1,4 @@
 import type { Scenario, ScenarioImpact, StockQuote } from '../types';
-import { STOCK_DATABASE } from '../data/mockStocks';
 
 // Sector sensitivity map: scenario → { sector → impact multiplier }
 const SECTOR_SENSITIVITIES: Record<string, Record<string, number>> = {
@@ -186,7 +185,7 @@ export function applyScenario(
   if (!scenario) return [];
 
   return symbols.map(symbol => {
-    const quote = quotes[symbol] || STOCK_DATABASE[symbol] as StockQuote;
+    const quote = quotes[symbol];
     if (!quote) return null;
     const sector = quote.sector || 'Technology';
     const impact = scenario.impacts[sector] ?? -0.05;
