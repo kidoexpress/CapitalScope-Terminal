@@ -266,7 +266,7 @@ export default function MonteCarloLab() {
                     if (!histogram.length) return undefined;
                     const target = params.initialValue;
                     return histogram.reduce((prev, curr) =>
-                      Math.abs(curr.min - target) < Math.abs(prev.min - target) ? curr : prev
+                      Math.abs(curr.value - target) < Math.abs(prev.value - target) ? curr : prev
                     ).range;
                   })()}
                   stroke="var(--accent)"
