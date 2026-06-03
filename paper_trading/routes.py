@@ -39,6 +39,9 @@ def create_portfolio(payload: CreatePortfolioRequest):
             "portfolio_id": portfolio.portfolio_id,
             "name": portfolio.name,
             "cash": portfolio.cash_balance,
+            "initial_cash": portfolio.initial_cash,
+            "total_value": portfolio.cash_balance,
+            "holdings": [],
             "created_at": portfolio.created_at,
         }
     except Exception as exc:
