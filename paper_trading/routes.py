@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from .engine import engine
+from .market_data import get_fundamentals as fetch_fundamentals
 
 
 router = APIRouter(prefix="/portfolio", tags=["paper-trading"])
@@ -74,6 +75,15 @@ def default_dates():
     return {"start": start.isoformat(), "end": end.isoformat()}
 
 
+@router.get("/fundamentals/{ticker}")
+def get_fundamentals(ticker: str):
+    """Return live fundamental data for a single ticker via yfinance."""
+    try:
+        return fetch_fundamentals(ticker)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 # ── Parameterised routes ───────────────────────────────────────────────────────
 
 @router.get("/{portfolio_id}")
@@ -130,40 +140,3 @@ def delete_portfolio(portfolio_id: str):
         return {"deleted": True, "portfolio_id": portfolio_id}
     except Exception as exc:
         raise api_error(exc)
-
-
-@router.get("/fundamentals/{ticker}")
-def get_fundamentals(ticker: str):
-    """Return live fundamental data for a single ticker via yfinance."""
-    try:
-        import yfinance as yf
-        t = yf.Ticker(ticker.upper())
-        info = t.info
-        # Revenue growth: trailing vs. prior year
-        rev = info.get("totalRevenue") or 0
-        rev_growth = info.get("revenueGrowth")  # decimal, e.g. 0.12 = 12%
-        yoy_growth = round(rev_growth * 100, 1) if rev_growth else None
-
-        # P/S from market cap / revenue
-        mkt_cap = info.get("marketCap") or 0
-        ps_ttm = round(mkt_cap / rev, 2) if rev > 0 else None
-
-        # Gross margin
-        gross_margin = info.get("grossMargins")
-        gross_margin_pct = round(gross_margin * 100, 1) if gross_margin else None
-
-        # EV/EBITDA
-        ev_ebitda = info.get("enterpriseToEbitda")
-
-        return {
-            "ticker": ticker.upper(),
-            "name": info.get("longName") or info.get("shortName") or ticker.upper(),
-            "sector": info.get("sector", "N/A"),
-            "psTTM": ps_ttm,
-            "evEbitda": round(ev_ebitda, 1) if ev_ebitda else None,
-            "grossMargin": gross_margin_pct,
-            "yoyGrowth": yoy_growth,
-            "marketCap": mkt_cap,
-        }
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=str(exc))

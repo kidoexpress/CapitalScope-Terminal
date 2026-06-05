@@ -19,6 +19,7 @@ class PaperPortfolio:
     holdings: dict[str, dict[str, float]] = field(default_factory=dict)
     cash_balance: float | None = None
     transactions: list[dict[str, Any]] = field(default_factory=list)
+    cash_ledger: list[dict[str, Any]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if self.cash_balance is None:
@@ -57,8 +58,15 @@ class PaperPortfolio:
             "shares": shares,
             "price": price,
             "notional": cost,
+            "realized_pnl": 0.0,
         }
         self.transactions.append(transaction)
+        self._record_cash(
+            date=transaction["date"],
+            entry_type="trade_buy",
+            amount=-cost,
+            description=f"Bought {shares:g} shares of {ticker} at ${price:,.2f}",
+        )
         return transaction
 
     def sell(self, ticker: str, shares: float, price: float, date: str | None = None) -> dict[str, Any]:
@@ -76,6 +84,7 @@ class PaperPortfolio:
             raise ValueError(f"Cannot sell {shares:g} shares of {ticker}; only {current['shares']:g} available.")
 
         proceeds = shares * price
+        realized_pnl = shares * (price - float(current["avg_cost"]))
         self.cash_balance += proceeds
         current["shares"] -= shares
         current["current_price"] = price
@@ -92,9 +101,26 @@ class PaperPortfolio:
             "shares": shares,
             "price": price,
             "notional": proceeds,
+            "realized_pnl": realized_pnl,
         }
         self.transactions.append(transaction)
+        self._record_cash(
+            date=transaction["date"],
+            entry_type="trade_sell",
+            amount=proceeds,
+            description=f"Sold {shares:g} shares of {ticker} at ${price:,.2f}",
+        )
         return transaction
+
+    def _record_cash(self, date: str, entry_type: str, amount: float, description: str) -> None:
+        self.cash_ledger.append({
+            "timestamp": utc_now_iso(),
+            "date": date,
+            "type": entry_type,
+            "amount": float(amount),
+            "cash_balance_after": float(self.cash_balance),
+            "description": description,
+        })
 
     def get_total_value(self, prices_dict: dict[str, float] | None = None) -> float:
         prices_dict = prices_dict or {}
@@ -104,12 +130,16 @@ class PaperPortfolio:
             holdings_value += holding["shares"] * price
         return float(self.cash_balance + holdings_value)
 
-    def get_portfolio_weights(self) -> dict[str, float]:
-        total_value = self.get_total_value()
+    def get_portfolio_weights(self, prices_dict: dict[str, float] | None = None) -> dict[str, float]:
+        prices_dict = prices_dict or {}
+        total_value = self.get_total_value(prices_dict)
         if total_value <= 0:
             return {}
         return {
-            ticker: (holding["shares"] * holding.get("current_price", holding["avg_cost"])) / total_value
+            ticker: (
+                holding["shares"]
+                * float(prices_dict.get(ticker, holding.get("current_price", holding["avg_cost"])))
+            ) / total_value
             for ticker, holding in self.holdings.items()
         }
 
@@ -122,6 +152,7 @@ class PaperPortfolio:
             "holdings": self.holdings,
             "cash_balance": self.cash_balance,
             "transactions": self.transactions,
+            "cash_ledger": self.cash_ledger,
         }
 
     @classmethod
@@ -134,5 +165,5 @@ class PaperPortfolio:
             holdings=data.get("holdings", {}),
             cash_balance=float(data.get("cash_balance", data["initial_cash"])),
             transactions=data.get("transactions", []),
+            cash_ledger=data.get("cash_ledger", []),
         )
-

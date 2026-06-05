@@ -16,6 +16,8 @@ dist-ssr
 paper_trading/.cache/
 paper_trading/__pycache__/
 paper_trading/portfolios_state.json
+paper_trading/paper_trading.db
+paper_trading/paper_trading.db-*
 
 # Editor directories and files
 .vscode/*

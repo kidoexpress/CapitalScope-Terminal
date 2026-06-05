@@ -72,6 +72,10 @@ function yahooSymbol(ticker: string) {
   return normalized;
 }
 
+export function normalizeSymbol(ticker: string) {
+  return ticker.trim().toUpperCase().replace('BRK.B', 'BRK-B');
+}
+
 function displaySymbol(ticker: string) {
   return ticker.replace('^', '').replace('-USD', '').replace('DX-Y.NYB', 'DXY').replace('TNX', '10Y');
 }
@@ -302,6 +306,18 @@ export function getMarketDataMeta(quote?: MarketQuote | null): MarketDataMeta {
     lastUpdated: quote?.lastUpdated ?? nowIso(),
     delayed: true,
     error: quote ? undefined : 'Market data unavailable',
+  };
+}
+
+export function getDataFreshness(quote?: MarketQuote | null) {
+  const lastUpdated = quote?.lastUpdated ?? null;
+  return {
+    source: 'Yahoo Finance' as const,
+    status: quote ? 'delayed' as const : 'unavailable' as const,
+    lastUpdated,
+    label: quote && lastUpdated
+      ? `Yahoo Finance · Updated ${new Date(lastUpdated).toLocaleTimeString()}`
+      : 'Yahoo Finance · Market data unavailable',
   };
 }
 

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useMemo } from 'react';
-import { AlertTriangle, Bot, RefreshCw } from 'lucide-react';
+import { AlertTriangle, RefreshCw, WalletCards } from 'lucide-react';
 import PortfolioPicker from '../components/PaperTrading/PortfolioPicker';
 import PortfolioSummary from '../components/PaperTrading/PortfolioSummary';
 import EquityCurveChart from '../components/PaperTrading/EquityCurveChart';
 import HoldingsTable from '../components/PaperTrading/HoldingsTable';
 import TradePanel from '../components/PaperTrading/TradePanel';
 import BenchmarkComparison from '../components/PaperTrading/BenchmarkComparison';
+import { ActionButton, DataSourcePill, EmptyState, InsightMemo, PageHeader } from '../components/ui/product';
 import { usePaperTradingStore } from '../store/paperTradingStore';
 import { formatCurrency } from '../utils/finance';
 
@@ -45,13 +46,19 @@ export default function PaperTrading() {
 
   return (
     <div className="workflow-page paper-page animate-fade-in-up">
-      <div className="product-page-heading">
-        <div>
-          <p>Simulation Engine</p>
-          <h1>Paper Trading</h1>
-        </div>
-        <span>Virtual portfolios with persisted trades, live Yahoo Finance prices, and quantitative performance reporting.</span>
-      </div>
+      <PageHeader
+        eyebrow="Simulation Engine"
+        title="Paper Trading"
+        description="Create a virtual book, execute simulated trades, and compare risk-adjusted performance against market benchmarks."
+        meta={(
+          <DataSourcePill
+            label="Yahoo Finance prices · Simulation mode"
+            status="simulation"
+            onRefresh={() => { void refreshActivePortfolio(); void loadReport(); }}
+            refreshing={loading}
+          />
+        )}
+      />
 
       {error && (
         <div className="paper-error-banner">
@@ -62,6 +69,19 @@ export default function PaperTrading() {
           </div>
           <button onClick={clearError}>Dismiss</button>
         </div>
+      )}
+
+      {!loading && portfolios.length === 0 && (
+        <EmptyState
+          icon={<WalletCards size={22} />}
+          title="Start with a virtual portfolio"
+          description="Create a paper portfolio to track cash, holdings, P&L, benchmark comparison, and risk-adjusted returns without executing real trades."
+          action={(
+            <ActionButton onClick={() => void createNewPortfolio('Research Portfolio', 100000)}>
+              Create $100k portfolio
+            </ActionButton>
+          )}
+        />
       )}
 
       <section className="paper-hero">
@@ -81,6 +101,10 @@ export default function PaperTrading() {
           <span>Portfolio Value</span>
           <strong>{formatCurrency(activePortfolio?.totalValue ?? 0)}</strong>
           <em>Cash balance: {formatCurrency(activePortfolio?.cash ?? 0)}</em>
+          <em className={(activePortfolio?.totalPnl ?? 0) >= 0 ? 'positive' : 'negative'}>
+            Total P&L: {formatCurrency(activePortfolio?.totalPnl ?? 0)} ({(activePortfolio?.totalPnlPct ?? 0).toFixed(2)}%)
+          </em>
+          <em>Realized: {formatCurrency(activePortfolio?.realizedPnl ?? 0)} · Unrealized: {formatCurrency(activePortfolio?.unrealizedPnl ?? 0)}</em>
           <button onClick={() => { void refreshActivePortfolio(); void loadReport(); }} disabled={loading}>
             <RefreshCw size={15} className={loading ? 'animate-spin' : ''} /> Refresh
           </button>
@@ -104,19 +128,16 @@ export default function PaperTrading() {
 
         <aside className="paper-side-stack">
           <TradePanel portfolio={activePortfolio} onTrade={runTrade} loading={loading} />
-          <section className="workflow-card paper-ai-note">
-            <div className="workflow-card-header">
-              <div>
-                <span className="label-upper">AI Simulation Note</span>
-                <h2>Portfolio Read</h2>
-              </div>
-              <Bot size={18} />
-            </div>
-            <p>
-              This module is a virtual investing lab. Metrics are calculated from historical returns and benchmark comparisons,
-              but outputs remain educational and should be independently verified.
-            </p>
-          </section>
+          <InsightMemo
+            eyebrow="AI Simulation Note"
+            title="Portfolio Read"
+            summary="This virtual lab estimates portfolio behavior from historical returns, current Yahoo Finance prices, and benchmark-relative metrics."
+            items={[
+              { label: 'Review mode', value: 'Human review required' },
+              { label: 'Trade execution', value: 'Disabled' },
+              { label: 'Primary risks', value: 'Data delays, model assumptions, and market regime shifts' },
+            ]}
+          />
         </aside>
       </div>
     </div>

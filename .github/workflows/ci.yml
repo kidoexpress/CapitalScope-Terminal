@@ -38,3 +38,6 @@ jobs:
 
       - name: Compile backend
         run: python -m compileall paper_trading
+
+      - name: Run backend tests
+        run: python -m pytest

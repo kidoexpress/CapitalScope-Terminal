@@ -5,6 +5,8 @@ export interface Holding {
   currentPrice: number;
   pnl: number;
   pnlPct: number;
+  unrealizedPnl?: number;
+  unrealizedPnlPct?: number;
   weight: number;
   sector?: string;
 }
@@ -15,7 +17,16 @@ export interface Portfolio {
   cash: number;
   initialCash: number;
   totalValue: number;
+  realizedPnl: number;
+  unrealizedPnl: number;
+  totalPnl: number;
+  totalPnlPct: number;
   holdings: Holding[];
+  transactions?: Array<Record<string, unknown>>;
+  cashLedger?: Array<Record<string, unknown>>;
+  dataSource?: string;
+  dataStatus?: string;
+  lastUpdated?: string;
   createdAt: string;
 }
 
@@ -56,6 +67,8 @@ export interface PerformanceReport {
   metrics: PerformanceMetrics;
   benchmarkComparison: BenchmarkComparisonRow[];
   equityCurve: EquityPoint[];
+  assumptions?: string[];
+  dataQualityNotes?: string[];
 }
 
 export interface TradeRequest {
@@ -64,4 +77,3 @@ export interface TradeRequest {
   shares: number;
   date?: string;
 }
-

@@ -14,6 +14,8 @@ interface ApiHolding {
   current_price: number;
   pnl: number;
   pnl_pct: number;
+  unrealized_pnl?: number;
+  unrealized_pnl_pct?: number;
   weight: number;
 }
 
@@ -23,7 +25,16 @@ interface ApiPortfolio {
   cash: number;
   initial_cash?: number;
   total_value?: number;
+  realized_pnl?: number;
+  unrealized_pnl?: number;
+  total_pnl?: number;
+  total_pnl_pct?: number;
   holdings?: ApiHolding[];
+  transactions?: Array<Record<string, unknown>>;
+  cash_ledger?: Array<Record<string, unknown>>;
+  data_source?: string;
+  data_status?: string;
+  last_updated?: string;
   created_at: string;
 }
 
@@ -54,6 +65,15 @@ function mapPortfolio(raw: ApiPortfolio): Portfolio {
     cash: raw.cash,
     initialCash: raw.initial_cash ?? raw.cash,
     totalValue: raw.total_value ?? raw.cash,
+    realizedPnl: raw.realized_pnl ?? 0,
+    unrealizedPnl: raw.unrealized_pnl ?? 0,
+    totalPnl: raw.total_pnl ?? 0,
+    totalPnlPct: raw.total_pnl_pct ?? 0,
+    transactions: raw.transactions,
+    cashLedger: raw.cash_ledger,
+    dataSource: raw.data_source,
+    dataStatus: raw.data_status,
+    lastUpdated: raw.last_updated,
     createdAt: raw.created_at,
     holdings: (raw.holdings ?? []).map(holding => ({
       ticker: holding.ticker,
@@ -62,6 +82,8 @@ function mapPortfolio(raw: ApiPortfolio): Portfolio {
       currentPrice: holding.current_price,
       pnl: holding.pnl,
       pnlPct: holding.pnl_pct,
+      unrealizedPnl: holding.unrealized_pnl,
+      unrealizedPnlPct: holding.unrealized_pnl_pct,
       weight: holding.weight,
     })),
   };
@@ -135,6 +157,8 @@ export async function getPerformanceReport(id: string, start: string, end: strin
     metrics: ApiMetrics;
     benchmark_comparison: Record<string, ApiMetrics>;
     equity_curve: any[];
+    assumptions?: string[];
+    data_quality_notes?: string[];
   }>(`/api/portfolio/${id}/metrics?start=${start}&end=${end}`);
 
   const benchmarkComparison: BenchmarkComparisonRow[] = [
@@ -154,6 +178,7 @@ export async function getPerformanceReport(id: string, start: string, end: strin
     metrics: mapMetrics(report.metrics),
     benchmarkComparison,
     equityCurve: report.equity_curve.map(mapEquityPoint),
+    assumptions: report.assumptions,
+    dataQualityNotes: report.data_quality_notes,
   };
 }
-
