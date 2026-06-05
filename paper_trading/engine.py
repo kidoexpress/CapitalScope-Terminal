@@ -16,6 +16,23 @@ from .repository import JsonPortfolioRepository, PortfolioRepository, SQLitePort
 
 STATE_PATH = Path(__file__).resolve().parent / "portfolios_state.json"
 
+TICKER_CURRENCY: dict[str, str] = {
+    ".SA": "BRL",
+    ".L":  "GBP",
+    ".DE": "EUR",
+    ".PA": "EUR",
+    ".T":  "JPY",
+    ".HK": "HKD",
+}
+
+def get_ticker_currency(ticker: str) -> str:
+    """Return ISO 4217 currency code for a ticker based on its suffix."""
+    upper = ticker.upper()
+    for suffix, currency in TICKER_CURRENCY.items():
+        if upper.endswith(suffix):
+            return currency
+    return "USD"
+
 
 class PaperTradingEngine:
     def __init__(
@@ -97,10 +114,12 @@ class PaperTradingEngine:
                 "unrealized_pnl_pct": pnl / cost_basis * 100 if cost_basis else 0.0,
                 "pnl_pct": (current_price / holding["avg_cost"] - 1.0) * 100 if holding["avg_cost"] else 0.0,
                 "weight": market_value / total_value * 100 if total_value else 0.0,
+                "currency": get_ticker_currency(ticker),
             })
         total_realized_pnl = sum(float(txn.get("realized_pnl", 0.0)) for txn in portfolio.transactions)
         total_pnl = total_realized_pnl + total_unrealized_pnl
         invested_capital = max(portfolio.initial_cash, 1e-9)
+        currencies_in_portfolio = {get_ticker_currency(t) for t in portfolio.holdings}
         self.save_state()
         return {
             "portfolio_id": portfolio.portfolio_id,
@@ -120,9 +139,11 @@ class PaperTradingEngine:
             "data_source": "Yahoo Finance",
             "data_status": "delayed",
             "last_updated": datetime.now(timezone.utc).isoformat(),
+            "has_mixed_currencies": len(currencies_in_portfolio) > 1,
+            "currencies": list(currencies_in_portfolio),
         }
 
-    def run_backtest(self, portfolio_id: str, start_date: str, end_date: str) -> dict[str, Any]:
+    def run_backtest(self, portfolio_id: str, start_date: str, end_date: str, benchmark_ticker: str | None = None) -> dict[str, Any]:
         portfolio = self.get_portfolio(portfolio_id)
         tickers = sorted({
             str(txn.get("ticker", "")).upper().replace(".", "-")
@@ -155,11 +176,17 @@ class PaperTradingEngine:
                 equity = self._build_legacy_holdings_equity_curve(portfolio, prices)
             portfolio_returns = equity.pct_change().replace([np.inf, -np.inf], np.nan).dropna().fillna(0)
 
-        metrics = calculate_metrics(portfolio_returns, spy_returns)
+        # Use the explicitly requested benchmark ticker as primary for alpha/beta
+        if benchmark_ticker and benchmark_ticker in benchmarks:
+            primary_returns = benchmarks[benchmark_ticker]
+        else:
+            primary_returns = spy_returns
+
+        metrics = calculate_metrics(portfolio_returns, primary_returns)
 
         benchmark_comparison = {}
         for label, returns in benchmarks.items():
-            benchmark_comparison[label] = calculate_metrics(returns, spy_returns)
+            benchmark_comparison[label] = calculate_metrics(returns, primary_returns)
 
         return {
             "returns": portfolio_returns,
@@ -245,10 +272,10 @@ class PaperTradingEngine:
             values.append(float(portfolio.cash_balance) + holdings_value)
         return pd.Series(values, index=pd.DatetimeIndex(dates), dtype="float64")
 
-    def get_performance_report(self, portfolio_id: str, start: str | None = None, end: str | None = None) -> dict[str, Any]:
+    def get_performance_report(self, portfolio_id: str, start: str | None = None, end: str | None = None, benchmark_ticker: str | None = None) -> dict[str, Any]:
         end_date = end or datetime.now(timezone.utc).date().isoformat()
         start_date = start or (datetime.now(timezone.utc).date() - timedelta(days=365)).isoformat()
-        result = self.run_backtest(portfolio_id, start_date, end_date)
+        result = self.run_backtest(portfolio_id, start_date, end_date, benchmark_ticker=benchmark_ticker)
         equity = result["equity"]
         benchmark_returns = result["benchmark_returns"]
 

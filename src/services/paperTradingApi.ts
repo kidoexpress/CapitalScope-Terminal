@@ -75,6 +75,8 @@ function mapPortfolio(raw: ApiPortfolio): Portfolio {
     dataStatus: raw.data_status,
     lastUpdated: raw.last_updated,
     createdAt: raw.created_at,
+    hasMixedCurrencies: (raw as any).has_mixed_currencies ?? false,
+    currencies: (raw as any).currencies ?? ['USD'],
     holdings: (raw.holdings ?? []).map(holding => ({
       ticker: holding.ticker,
       shares: holding.shares,
@@ -152,14 +154,15 @@ export async function deletePortfolio(id: string): Promise<void> {
   await request(`/api/portfolio/${id}`, { method: 'DELETE' });
 }
 
-export async function getPerformanceReport(id: string, start: string, end: string): Promise<PerformanceReport> {
+export async function getPerformanceReport(id: string, start: string, end: string, benchmark?: string): Promise<PerformanceReport> {
+  const benchmarkParam = benchmark ? `&benchmark=${encodeURIComponent(benchmark)}` : '';
   const report = await request<{
     metrics: ApiMetrics;
     benchmark_comparison: Record<string, ApiMetrics>;
     equity_curve: any[];
     assumptions?: string[];
     data_quality_notes?: string[];
-  }>(`/api/portfolio/${id}/metrics?start=${start}&end=${end}`);
+  }>(`/api/portfolio/${id}/metrics?start=${start}&end=${end}${benchmarkParam}`);
 
   const benchmarkComparison: BenchmarkComparisonRow[] = [
     ['SPY', report.benchmark_comparison.SPY],

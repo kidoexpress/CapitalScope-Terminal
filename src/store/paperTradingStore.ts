@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import type { PerformanceReport, Portfolio, TradeRequest } from '../types/portfolio';
+import { MARKETS } from '../config/markets';
+import { usePortfolioStore } from './portfolioStore';
 import {
   createPortfolio,
   executeTrade,
@@ -132,8 +134,11 @@ export const usePaperTradingStore = create<PaperTradingState>((set, get) => ({
     const id = get().activePortfolioId;
     if (!id) return;
     const { start, end } = getDateRange(get().period);
+    const activeMarketId = usePortfolioStore.getState().activeMarketId;
+    const market = MARKETS.find(m => m.id === activeMarketId);
+    const benchmarkTicker = market?.benchmarkTicker ?? 'SPY';
     try {
-      const report = await getPerformanceReport(id, start, end);
+      const report = await getPerformanceReport(id, start, end, benchmarkTicker);
       // Clear any stale report-related error so the banner doesn't flash
       set({ report, error: null });
     } catch (err) {

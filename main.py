@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from paper_trading import router as paper_trading_router
+from paper_trading.proxy import proxy_router
 
 app = FastAPI(
     title="CapitalScope Terminal API",
@@ -30,6 +31,7 @@ app.add_middleware(
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(paper_trading_router, prefix="/api")
+app.include_router(proxy_router, prefix="/api")
 
 
 @app.get("/health")

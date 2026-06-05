@@ -14,10 +14,10 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api/yahoo': {
-        target: 'https://query1.finance.yahoo.com',
+        // Route through FastAPI backend proxy for consistency between dev and production.
+        // Same code path works in both environments.
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/yahoo/, ''),
-        headers: { 'User-Agent': 'Mozilla/5.0' },
       },
       '/api/claude': {
         target: 'https://api.anthropic.com',

@@ -2,6 +2,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import type React from 'react';
 import { usePortfolioStore } from '../../store/portfolioStore';
 import { MARKETS } from '../../config/markets';
+import { getMarketStatus } from '../../utils/marketHours';
 import {
   TrendingUp, Briefcase, ShieldCheck,
   FlaskConical, Zap, Star,
@@ -18,21 +19,21 @@ interface NavItem {
 }
 
 const CORE_NAV: NavItem[] = [
-  { path: '/analyzer',   icon: TrendingUp,   label: 'Analyzer'   },
-  { path: '/portfolio',  icon: Briefcase,    label: 'Portfolio'  },
-  { path: '/risk',       icon: ShieldCheck,  label: 'Risk'       },
-  { path: '/montecarlo', icon: FlaskConical, label: 'Monte Carlo'},
-  { path: '/scenarios',  icon: Zap,          label: 'Scenarios'  },
-  { path: '/watchlist',  icon: Star,         label: 'Watchlist'  },
-  { path: '/paper-trading', icon: WalletCards, label: 'Paper Trade' },
+  { path: '/analyzer',      icon: TrendingUp,   label: 'Analyzer'    },
+  { path: '/portfolio',     icon: Briefcase,    label: 'Portfolio'   },
+  { path: '/risk',          icon: ShieldCheck,  label: 'Risk'        },
+  { path: '/montecarlo',    icon: FlaskConical, label: 'Monte Carlo' },
+  { path: '/scenarios',     icon: Zap,          label: 'Scenarios'   },
+  { path: '/watchlist',     icon: Star,         label: 'Watchlist'   },
+  { path: '/paper-trading', icon: WalletCards,  label: 'Paper Trade' },
 ];
 
 const AI_NAV: NavItem[] = [
-  { path: '/agents/earnings', icon: FileText,   label: 'Earnings'   },
-  { path: '/agents/research', icon: BarChart2,  label: 'Research'   },
-  { path: '/agents/model',    icon: Calculator, label: 'Models'     },
-  { path: '/research',        icon: BookOpen,   label: 'Deep Dive'  },
-  { path: '/scanner',         icon: ScanSearch, label: 'Scanner'    },
+  { path: '/agents/earnings', icon: FileText,   label: 'Earnings'  },
+  { path: '/agents/research', icon: BarChart2,  label: 'Research'  },
+  { path: '/agents/model',    icon: Calculator, label: 'Models'    },
+  { path: '/research',        icon: BookOpen,   label: 'Deep Dive' },
+  { path: '/scanner',         icon: ScanSearch, label: 'Scanner'   },
 ];
 
 function SideNavItem({ path, icon: Icon, label }: NavItem) {
@@ -65,6 +66,9 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const { activeMarketId, setActiveMarket } = usePortfolioStore();
 
+  const activeStatus = getMarketStatus(activeMarketId);
+  const activeName = MARKETS.find(m => m.id === activeMarketId)?.name.split(' ')[0] ?? '';
+
   return (
     <aside className="sidebar-shell">
       <button
@@ -95,14 +99,16 @@ export default function Sidebar() {
         }}>
           Market
         </p>
+
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
           {MARKETS.map(m => {
             const isActive = activeMarketId === m.id;
+            const status = getMarketStatus(m.id);
             return (
               <button
                 key={m.id}
                 onClick={() => setActiveMarket(m.id)}
-                title={m.name}
+                title={`${m.name} · ${status.label}`}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -114,22 +120,35 @@ export default function Sidebar() {
                   fontFamily: 'JetBrains Mono, monospace',
                   cursor: 'pointer',
                   transition: 'all 0.12s',
-                  border: isActive
-                    ? '1px solid var(--accent)'
-                    : '1px solid var(--border-sub)',
-                  background: isActive
-                    ? 'var(--accent-dim)'
-                    : 'transparent',
-                  color: isActive
-                    ? 'var(--accent)'
-                    : 'var(--text-lo)',
+                  border: isActive ? '1px solid var(--accent)' : '1px solid var(--border-sub)',
+                  background: isActive ? 'var(--accent-dim)' : 'transparent',
+                  color: isActive ? 'var(--accent)' : 'var(--text-lo)',
                 }}
               >
                 <span style={{ fontSize: 14 }}>{m.flag}</span>
                 <span>{m.id}</span>
+                <span style={{
+                  width: 5, height: 5, borderRadius: '50%',
+                  background: status.color, flexShrink: 0, marginLeft: 1,
+                }} />
               </button>
             );
           })}
+        </div>
+
+        {/* Active market status line */}
+        <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span style={{
+            width: 6, height: 6, borderRadius: '50%',
+            background: activeStatus.color, flexShrink: 0,
+          }} />
+          <span style={{
+            fontSize: 10,
+            color: activeStatus.isOpen ? '#10b981' : 'var(--text-lo)',
+            fontFamily: 'JetBrains Mono, monospace',
+          }}>
+            {activeName} {activeStatus.label}
+          </span>
         </div>
       </div>
 

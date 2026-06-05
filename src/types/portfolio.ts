@@ -28,6 +28,8 @@ export interface Portfolio {
   dataStatus?: string;
   lastUpdated?: string;
   createdAt: string;
+  hasMixedCurrencies?: boolean;
+  currencies?: string[];
 }
 
 export interface PerformanceMetrics {

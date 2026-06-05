@@ -67,6 +67,25 @@ def list_portfolios():
     return rows
 
 
+@router.get("/fx-rate")
+def get_fx_rate(base: str = "USD", target: str = "USD"):
+    """Return the exchange rate from base to target currency using yfinance."""
+    if base == target:
+        return {"rate": 1.0, "pair": f"{base}/{target}"}
+    try:
+        import yfinance as yf
+        pair = f"{base}{target}=X"
+        ticker = yf.Ticker(pair)
+        rate = ticker.fast_info.last_price
+        if not rate or rate <= 0:
+            inv_pair = f"{target}{base}=X"
+            inv_rate = yf.Ticker(inv_pair).fast_info.last_price
+            rate = 1.0 / inv_rate if inv_rate and inv_rate > 0 else 1.0
+        return {"rate": float(rate), "pair": f"{base}/{target}"}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 @router.get("/default-dates")
 def default_dates():
     """Return a sensible default start/end date range (1 year back)."""
@@ -113,9 +132,10 @@ def metrics(
     portfolio_id: str,
     start: Optional[str] = Query(default=None),
     end: Optional[str] = Query(default=None),
+    benchmark: Optional[str] = Query(default=None),
 ):
     try:
-        return engine.get_performance_report(portfolio_id, start, end)
+        return engine.get_performance_report(portfolio_id, start, end, benchmark_ticker=benchmark)
     except Exception as exc:
         raise api_error(exc)
 
@@ -125,9 +145,10 @@ def equity_curve(
     portfolio_id: str,
     start: Optional[str] = Query(default=None),
     end: Optional[str] = Query(default=None),
+    benchmark: Optional[str] = Query(default=None),
 ):
     try:
-        report = engine.get_performance_report(portfolio_id, start, end)
+        report = engine.get_performance_report(portfolio_id, start, end, benchmark_ticker=benchmark)
         return report["equity_curve"]
     except Exception as exc:
         raise api_error(exc)

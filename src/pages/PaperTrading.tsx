@@ -84,6 +84,28 @@ export default function PaperTrading() {
         />
       )}
 
+      {activePortfolio?.hasMixedCurrencies && (
+        <div style={{
+          padding: '10px 16px',
+          background: 'rgba(245,158,11,0.08)',
+          border: '1px solid rgba(245,158,11,0.25)',
+          borderRadius: 10,
+          fontSize: 12,
+          color: 'var(--amber)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 12,
+        }}>
+          <span>⚠</span>
+          <span>
+            This portfolio contains assets in multiple currencies ({activePortfolio.currencies?.join(', ')}).
+            Total value is summed without FX conversion — figures may not be comparable.
+            Use single-market portfolios for accurate P&L tracking.
+          </span>
+        </div>
+      )}
+
       <section className="paper-hero">
         <div className="paper-hero-main">
           <div className="market-open-pill"><span className="pulse-live" /> Simulation mode · No real trades</div>

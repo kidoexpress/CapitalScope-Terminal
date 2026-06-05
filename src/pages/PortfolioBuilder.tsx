@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Edit3, Plus, RefreshCw, Trash2, TrendingDown, TrendingUp, X } from 'lucide-react';
 import { usePortfolioStore, getTotalGainLoss, getTotalValue } from '../store/portfolioStore';
+import { buildRealPerformanceData, type PerformancePoint } from '../utils/portfolioPerformance';
+import { MARKETS } from '../config/markets';
 import { getStockQuote } from '../utils/api';
 import { calcDiversificationScore, formatCurrency, formatPercent } from '../utils/finance';
 import AllocationChart from '../components/charts/AllocationChart';
@@ -97,7 +99,7 @@ function PortfolioReviewCard({ holdings, diversScore }: { holdings: PortfolioHol
 }
 
 export default function PortfolioBuilder() {
-  const { holdings, addHolding, removeHolding, updateWeight, normalizeWeights } = usePortfolioStore();
+  const { holdings, addHolding, removeHolding, updateWeight, normalizeWeights, activeMarketId } = usePortfolioStore();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [form, setForm] = useState<AddHoldingForm>({ symbol: '', shares: 10, avgCost: 100, weight: 0.1 });
   const [addLoading, setAddLoading] = useState(false);
@@ -111,7 +113,18 @@ export default function PortfolioBuilder() {
     holdings.map(h => h.sector)
   );
 
-  const performanceData = useMemo(() => buildPerformanceData(holdings), [holdings]);
+  const activeMarket = MARKETS.find(m => m.id === activeMarketId) ?? MARKETS[0];
+  const activeBenchmark = activeMarket.benchmarkTicker;
+  const [performanceData, setPerformanceData] = useState<PerformancePoint[]>([]);
+  const [perfLoading, setPerfLoading] = useState(false);
+  useEffect(() => {
+    if (holdings.length === 0) { setPerformanceData([]); return; }
+    setPerfLoading(true);
+    buildRealPerformanceData(holdings, activeBenchmark)
+      .then(data => setPerformanceData(data.length > 0 ? data : []))
+      .catch(() => setPerformanceData([]))
+      .finally(() => setPerfLoading(false));
+  }, [holdings.map(h => h.symbol + h.weight).join(','), activeBenchmark]);
   const riskContribution = useMemo(() => buildRiskContribution(holdings), [holdings]);
 
   useEffect(() => {
@@ -195,7 +208,7 @@ export default function PortfolioBuilder() {
           <div className="workflow-card-header">
             <div>
               <span className="label-upper">Performance</span>
-              <h2>Portfolio vs S&P 500</h2>
+              <h2>Portfolio vs {activeMarket.benchmarkName}</h2>
             </div>
             <button onClick={() => setDrawerOpen(true)} className="secondary-action"><Edit3 size={14} /> Edit Holdings</button>
           </div>
@@ -221,19 +234,22 @@ export default function PortfolioBuilder() {
                 ) : null}
               />
               <Area type="monotone" dataKey="portfolio" name="Portfolio" stroke="#55d99a" fill="url(#portfolioArea)" strokeWidth={2} />
-              <Area type="monotone" dataKey="benchmark" name="S&P 500" stroke="rgba(255,255,255,0.38)" fill="transparent" strokeWidth={2} strokeDasharray="4 5" />
+              <Area type="monotone" dataKey="benchmark" name={activeBenchmark} stroke="rgba(255,255,255,0.38)" fill="transparent" strokeWidth={2} strokeDasharray="4 5" />
             </AreaChart>
           </ResponsiveContainer>
-          <p style={{
-            fontSize: 11,
-            color: 'var(--text-lo)',
-            textAlign: 'center',
-            marginTop: 10,
-            opacity: 0.65,
-            fontStyle: 'italic',
-          }}>
-            Illustrative simulation — based on current P&L, not actual historical price data
-          </p>
+          {perfLoading ? (
+            <div style={{ textAlign: 'center', padding: '12px', fontSize: 12, color: 'var(--text-lo)' }}>
+              Loading real historical returns...
+            </div>
+          ) : performanceData.length === 0 && !perfLoading ? (
+            <div style={{ textAlign: 'center', padding: '12px', fontSize: 12, color: 'var(--text-lo)' }}>
+              Add holdings to see real historical performance
+            </div>
+          ) : (
+            <p style={{ fontSize: 10, color: 'var(--text-lo)', textAlign: 'center', marginTop: 8, opacity: 0.6 }}>
+              Historical data via Yahoo Finance · Indexed to 100
+            </p>
+          )}
         </div>
 
         <div className="workflow-card allocation-card">
